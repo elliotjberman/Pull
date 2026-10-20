@@ -76,6 +76,7 @@ public final class DrumTreeHostFake
     {
         public final String name;
         public final boolean drum;
+        public boolean supportsFxSlots;
         public final List<List<Item>> layers = new ArrayList<> ();
         public final List<Item> fx = new ArrayList<> ();
         private Item (final String name, final boolean drum) { this.name = name; this.drum = drum; }
@@ -148,7 +149,7 @@ public final class DrumTreeHostFake
             case "exists" -> value (BooleanValue.class, () -> target.get () != null && position.get () >= 0, null);
             case "hasDrumPads" -> value (BooleanValue.class, () -> target.get () != null && target.get ().drum, null);
             case "hasLayers" -> value (BooleanValue.class, () -> target.get () != null && !target.get ().layers.isEmpty (), null);
-            case "hasSlots" -> value (BooleanValue.class, () -> target.get () != null && !target.get ().fx.isEmpty (), null);
+            case "hasSlots" -> value (BooleanValue.class, () -> target.get () != null && (target.get ().supportsFxSlots || !target.get ().fx.isEmpty ()), null);
             case "position" -> value (IntegerValue.class, position::get, null);
             case "name" -> value (StringValue.class, () -> target.get () == null ? "" : target.get ().name, null);
             case "createLayerBank" -> layers (target, (Integer) args[0]);

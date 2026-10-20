@@ -66,9 +66,14 @@ previous lifecycle and passes with parking enabled. Reference-window regressions
 window and equality observations independently, retain descendant identities through pending
 ancestor validation, and reject stale identity joins after layer reorder.
 
-The latest `mvn -o -Dmaven.compiler.showDeprecation=true package` gate passed **1,200 tests**,
-with zero failures, errors, skips or deprecation warnings. The matched build was installed and
-verified under the shared live lease in Bitwig 6.1.4 / controller API 25 on October 19, 2026:
+The stable merge candidate passed `mvn -o -Dmaven.compiler.showDeprecation=true package`:
+**1,201 tests**, zero failures, errors, skips or deprecation warnings. It includes current master,
+the unchanged `9179ffe2` discovery implementation, clearer coverage-warning text, and an explicit
+empty-FX-slot capability regression. The cache is excluded. This final integration is validated
+offline; it was not installed or restarted for the split.
+
+The preceding matched `9179ffe2` build passed 1,200 tests and was installed and verified under
+the shared live lease in Bitwig 6.1.4 / controller API 25 on October 19, 2026:
 
 - Source checkpoint: `9179ffe24e42fa2d3a569ac61123721ee0b3b7c1`.
 - Shell SHA-256: `f3963be2706fb7d8d9293c0a97187bee547baac667fe5caca7567097b38a030b`.
@@ -123,8 +128,9 @@ All windows were 30 seconds; every input/observation pair fell inside its record
 Screenshots verify all twelve selections per run. These are JVM main-thread CPU totals including
 idle work between clicks, **not click-to-paint latency**. Before/after builds use separate JVM
 processes; the new enabled-minus-disabled overhead averages 666 ms versus the prior 1,341 ms,
-but this is not a precise user-visible percentage speedup. Residual selection overhead remains
-an open acceptance item.
+but this is not a precise user-visible percentage speedup. Residual selection overhead is accepted
+for the initial merge; further optimization and coverage diagnostics remain
+[separate work](docs/findings/drum-discovery-cost-and-coverage.md).
 
 A new 30-second CPU profile at 1 ms sampling recorded 272 main-thread samples in
 `BitwigStudioHost.targetChanged`, versus 1,411/1,455 in the preceding enabled profiles.

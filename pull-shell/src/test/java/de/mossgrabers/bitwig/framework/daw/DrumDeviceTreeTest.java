@@ -223,6 +223,28 @@ class DrumDeviceTreeTest
     }
 
     @Test
+    void reportsContainerCoverageForEmptyFxSlotsWithoutLosingKnownDrums ()
+    {
+        final var host = new DrumTreeHostFake ();
+        host.root.addAll (List.of (drum ("Dry"), drum ("Spread")));
+        for (int i = 0; i <= DrumDeviceTree.MAX_CONTAINERS; i++)
+        {
+            final var effect = effect ("Effect with empty FX slot");
+            effect.supportsFxSlots = true;
+            host.root.add (effect);
+        }
+        final var tree = new DrumDeviceTree (host.track, "test");
+        host.settle (tree);
+        assertEquals (List.of ("Dry", "Spread"), names (tree));
+        assertTrue (tree.limited ());
+        host.root.remove (host.root.size () - 1);
+        host.publish ();
+        host.settle (tree);
+        assertEquals (List.of ("Dry", "Spread"), names (tree));
+        assertFalse (tree.limited ());
+    }
+
+    @Test
     void selectedSlotAliasDoesNotDuplicateMachinesOrConsumeTheEightMachineLimit ()
     {
         final var host = new DrumTreeHostFake ();

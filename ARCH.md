@@ -13,7 +13,8 @@ movable one-entry windows replace the handle-by-all-chains comparisons. Shell ac
 reference acknowledgement and retained descendant identity; core behavior is unchanged.
 The matched `9179ffe2` shell/core passed the eight-machine fixture and `alien2_revival` smoke
 in Bitwig 6.1.4. Paired measurements show reduced main-thread work, with residual overhead
-still measurable; performance acceptance remains open. See
+still measurable and accepted for the initial merge. Cache work and remaining coverage
+diagnostics are tracked [separately](docs/findings/drum-discovery-cost-and-coverage.md). See
 [TESTING](TESTING.md#composite-drum-discovery-api-59) and the
 [tree contract](docs/drum-device-tree.md) for build identities, bounds and coverage limits.
 

@@ -45,7 +45,10 @@ establishes selected-track applicability even when the user pins the model curso
 Core requires their track identities to agree before enabling Drum actions and feedback.
 
 The first eight discovered machines contribute. Machine, container, chain or layer overflow
-sets an explicit limited-coverage flag; core displays a notification. Limits do not alter
+sets an explicit limited-coverage flag; core displays a coverage notification. Ordinary effects
+with empty FX slots can consume the container allowance even with fewer than eight machines.
+Resource-specific diagnostics and discovery/cache optimization remain
+[tracked work](findings/drum-discovery-cost-and-coverage.md). Limits do not alter
 Bitwig's native musical routing, so undiscovered machines can still sound. Merely having more
 than one FX slot does not set overflow: selected-slot-only coverage is an API limitation.
 
