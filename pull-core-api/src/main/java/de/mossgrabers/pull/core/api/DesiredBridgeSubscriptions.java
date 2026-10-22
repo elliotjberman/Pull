@@ -14,8 +14,9 @@ import java.util.Set;
  *
  * @param domains Requested state domains
  * @param clipScan Target-fenced request for the one selected-track clip window
+ * @param drumTarget Exact descendant requested by the group drum resolver
  */
-public record DesiredBridgeSubscriptions (Set<BridgeSubscription> domains, DesiredClipScan clipScan)
+public record DesiredBridgeSubscriptions (Set<BridgeSubscription> domains, DesiredClipScan clipScan, DesiredDrumTarget drumTarget)
 {
     private static final DesiredBridgeSubscriptions EMPTY = new DesiredBridgeSubscriptions (Set.of ());
 
@@ -25,6 +26,9 @@ public record DesiredBridgeSubscriptions (Set<BridgeSubscription> domains, Desir
      */
     public DesiredBridgeSubscriptions
     {
+        drumTarget = Objects.requireNonNull (drumTarget);
+        if (drumTarget.active () && !domains.contains (BridgeSubscription.NOTE_VIEW))
+            throw new IllegalArgumentException ("Drum target requires note observations");
         clipScan = Objects.requireNonNull (clipScan, "clipScan");
         domains = Set.copyOf (Objects.requireNonNull (domains, "domains"));
         if (clipScan.active () && !domains.contains (BridgeSubscription.SELECTED_TRACK_CLIPS))
@@ -32,10 +36,22 @@ public record DesiredBridgeSubscriptions (Set<BridgeSubscription> domains, Desir
     }
 
 
+    public DesiredBridgeSubscriptions (Set<BridgeSubscription> domains, DesiredClipScan clipScan)
+    {
+        this (domains, clipScan, DesiredDrumTarget.inactive ());
+    }
+
     /** Subscriptions without a selected-track clip window. */
     public DesiredBridgeSubscriptions (final Set<BridgeSubscription> domains)
     {
         this (domains, DesiredClipScan.inactive ());
+    }
+
+
+    /** Replace domains while preserving the exact bounded-window requests. */
+    public DesiredBridgeSubscriptions withDomains (Set<BridgeSubscription> domains)
+    {
+        return new DesiredBridgeSubscriptions (domains, this.clipScan, this.drumTarget);
     }
 
 
