@@ -127,7 +127,7 @@ class GroupDrumTargetTest
                     if (method.getName ().equals ("set")) { final boolean next = (Boolean) args[0]; this.submitted.add (() -> { this.pinned = next; if (!next) this.rootId = this.selectedId; }); }
                     return relaxedValue (method.getReturnType ());
                 });
-                case "selectChannel" -> { final String next = ((Track) a[0]).channelId ().get (); this.submitted.add (() -> this.rootId = next); yield null; }
+                case "selectChannel" -> { final String next = ((Track) a[0]).channelId ().get (); this.submitted.add (() -> { this.rootId = next; if (!this.pinned) this.selectedId = next; }); yield null; }
                 case "addNoteSource", "removeNoteSource" -> { this.routes.add (id.get () + (m.getName ().equals ("addNoteSource") ? ":on" : ":off")); yield null; }
                 default -> relaxedValue (m.getReturnType ());
             });

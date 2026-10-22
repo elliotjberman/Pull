@@ -103,7 +103,7 @@ final class GroupDrumTarget
             this.request = checked;
             this.phase = 0;
             this.deadline = System.nanoTime () + 2_000_000_000L;
-            this.root.isPinned ().set (false);
+            this.root.isPinned ().set (checked.active ());
             return;
         }
         if (!checked.active ())
@@ -112,10 +112,10 @@ final class GroupDrumTarget
             if (this.root.isPinned ().get ()) this.root.isPinned ().set (false);
             return;
         }
-        if (this.phase == 0 && !this.root.isPinned ().get ())
+        if (this.phase == 0 && this.root.isPinned ().get ())
         {
+            // Detach from editor selection before moving the private cursor.
             this.root.selectChannel (source);
-            this.root.isPinned ().set (true);
             this.phase = 1;
         }
         else if (this.phase == 1 && this.root.isPinned ().get () && this.root.exists ().get () && checked.trackId ().equals (this.root.channelId ().get ()))
@@ -124,7 +124,7 @@ final class GroupDrumTarget
         {
             this.phase = 0;
             this.deadline = System.nanoTime () + 2_000_000_000L;
-            this.root.isPinned ().set (false);
+            this.root.isPinned ().set (true);
         }
     }
 
