@@ -28,5 +28,7 @@ Any future search that skips non-drum children needs a reliable absence policy: 
 and pin read-back, scanner idleness or elapsed time do not acknowledge every descendant window.
 
 Remove this finding when target selection and nested-group coverage are agreed and implemented,
-with matched native routing/feedback and cost measurements. This fallback still needs an exact
-shell/core installation and live smoke test; another agent is using Bitwig, so this work is offline.
+with matched native routing/feedback and cost measurements. The matched `2a6a3183` shell/core
+passed the October 21 native College Town targeting and alien2 smoke; see
+[TESTING](../../TESTING.md#group-drum-target-fallback-api-60) for the exercised paths and limits.
+The positional policy remains a deliberate gig fallback.
