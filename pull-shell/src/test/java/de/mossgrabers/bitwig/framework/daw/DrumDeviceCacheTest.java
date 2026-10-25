@@ -55,19 +55,39 @@ class DrumDeviceCacheTest
     }
 
     @Test
+    void offscreenAcquisitionAndEvictionPreserveEditorSelection ()
+    {
+        final var host = new DrumCacheHostFake ();
+        host.addTrack ("selected");
+        for (final String id : List.of ("a", "b", "c", "d", "e")) host.addTrack (id, drum (id));
+        final var cache = new DrumDeviceCache (host.controller, () -> host.project);
+        final var model = cache.follow (host.model);
+        cache.follow (host.selected);
+        host.select (host.selected, "selected");
+        host.publish ();
+        for (final String id : List.of ("a", "b", "c", "d", "e", "a"))
+        {
+            host.select (host.model, id);
+            host.publish ();
+            host.settle (model);
+            assertEquals (List.of (id), names (model));
+            assertEquals ("selected", host.editorSelection, "private discovery cannot select an offscreen track in the editor");
+        }
+    }
+
+    @Test
     void trackAcquisitionRequiresLaterReadbackBeforeAnyDeviceSearch ()
     {
         final var host = new DrumCacheHostFake ();
         host.addTrack ("drums", drum ("Drum"));
         final var cache = new DrumDeviceCache (host.controller, () -> host.project);
         final var view = cache.follow (host.selected);
-        host.advance ();
         host.select (host.selected, "drums");
         host.publish ();
         assertTrue (view.machines ().isEmpty ());
         host.applyCommands ();
         assertTrue (view.machines ().isEmpty ());
-        assertEquals (0, host.trackSelections, "unpin submission is not an acknowledgement");
+        assertEquals (0, host.trackSelections, "pin submission is not an acknowledgement");
         host.publish ();
         assertTrue (view.machines ().isEmpty ());
         assertEquals (1, host.trackSelections);
@@ -180,7 +200,6 @@ class DrumDeviceCacheTest
         host.addTrack ("b", drum ("B"));
         final var cache = new DrumDeviceCache (host.controller, () -> host.project);
         final var view = cache.follow (host.selected);
-        host.advance ();
         host.select (host.selected, "a");
         host.publish ();
         view.machines ();
@@ -252,15 +271,14 @@ class DrumDeviceCacheTest
     }
 
     @Test
-    void acquisitionDeadlineRetriesRejectedUnpinningWithoutAcknowledgingIt ()
+    void acquisitionDeadlineRetriesRejectedPinningWithoutAcknowledgingIt ()
     {
         final var host = new DrumCacheHostFake ();
         host.addTrack ("drums", drum ("Drum"));
         final AtomicLong time = new AtomicLong ();
         final var cache = new DrumDeviceCache (host.controller, () -> host.project, time::get);
         final var view = cache.follow (host.selected);
-        host.advance ();
-        host.rejectUnpin = true;
+        host.rejectPin = true;
         host.select (host.selected, "drums");
         host.publish ();
         host.settle (view);
@@ -270,9 +288,9 @@ class DrumDeviceCacheTest
         assertEquals (requests, host.trackPinRequests, "reads alone do not expire the acquisition");
         time.set (3_000_000_000L);
         assertTrue (view.machines ().isEmpty ());
-        assertTrue (host.trackPinRequests > requests, "deadline permits another native unpin request");
+        assertTrue (host.trackPinRequests > requests, "deadline permits another native pin request");
         assertEquals (0, host.trackSelections, "expiry is not a native identity acknowledgement");
-        host.rejectUnpin = false;
+        host.rejectPin = false;
         host.advance ();
         host.settle (view);
         assertEquals (List.of ("Drum"), names (view));

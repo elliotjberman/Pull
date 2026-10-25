@@ -27,7 +27,8 @@ public final class DrumCacheHostFake
     private final Map<Resource, Boolean> pinWrites = new IdentityHashMap<> ();
     public final CursorTrack model = this.source ();
     public final CursorTrack selected = this.source ();
-    public boolean rejectUnpin;
+    public boolean rejectPin;
+    public String editorSelection = "";
     public int trackPinRequests;
     public int trackSelections;
     public int trackTargetChanges;
@@ -48,7 +49,7 @@ public final class DrumCacheHostFake
         return root;
     }
 
-    public void select (final CursorTrack source, final String id) { this.sources.get (source)[0] = id; }
+    public void select (final CursorTrack source, final String id) { this.sources.get (source)[0] = id; if (source == this.selected) this.editorSelection = id; }
     public int deviceSelections () { return this.resources.stream ().mapToInt (r -> r.devices.selections).sum (); }
     public int deviceTargetChanges () { return this.resources.stream ().mapToInt (r -> r.devices.cursorTargetChanges).sum (); }
     public int equalityValues () { return this.resources.stream ().mapToInt (r -> r.devices.equalityValues).sum (); }
@@ -58,7 +59,7 @@ public final class DrumCacheHostFake
         final var pending = List.copyOf (this.commands);
         this.commands.clear ();
         pending.forEach (Runnable::run);
-        this.pinWrites.forEach ((resource, value) -> { if (value || !this.rejectUnpin) resource.pinned = value; });
+        this.pinWrites.forEach ((resource, value) -> { if (!value || !this.rejectPin) resource.pinned = value; });
         this.pinWrites.clear ();
         this.resources.forEach (r -> r.devices.applyCommands ());
     }
@@ -120,7 +121,11 @@ public final class DrumCacheHostFake
                 final List<DrumTreeHostFake.Item> root = this.tracks.get (id);
                 this.trackSelections++;
                 this.commands.add (() -> {
-                    if (resource.pinned) return;
+                    if (!resource.pinned)
+                    {
+                        this.editorSelection = id;
+                        this.sources.get (this.selected)[0] = id;
+                    }
                     resource.devices.trackId = id;
                     resource.devices.root = root;
                 });

@@ -22,7 +22,7 @@ public final class DrumDeviceCache
 {
     public static final int TRACK_CAPACITY = 4;
     private static final long ACQUISITION_TIMEOUT_NANOS = 2_000_000_000L;
-    private enum State { EMPTY, UNPINNING, PINNING, READY }
+    private enum State { EMPTY, PINNING, SELECTING, READY }
 
     private final Supplier<String> projectIdentity;
     private final LongSupplier nanoTime;
@@ -160,9 +160,9 @@ public final class DrumDeviceCache
         {
             this.tree.invalidate ();
             this.trackId = id;
-            this.state = State.UNPINNING;
+            this.state = State.PINNING;
             this.deadline = DrumDeviceCache.this.nanoTime.getAsLong () + ACQUISITION_TIMEOUT_NANOS;
-            this.track.isPinned ().set (false);
+            this.track.isPinned ().set (true);
         }
 
         private void advance (final CursorTrack source)
@@ -172,14 +172,14 @@ public final class DrumDeviceCache
                 if (!this.aligned ()) this.begin (this.trackId);
                 return;
             }
-            if (this.state == State.UNPINNING && !this.track.isPinned ().get ())
+            if (this.state == State.PINNING && this.track.isPinned ().get ())
             {
                 if (!source.exists ().get () || !this.trackId.equals (source.channelId ().get ())) return;
+                // A private track cursor must be detached from editor selection before navigation.
                 this.track.selectChannel (source);
-                this.track.isPinned ().set (true);
-                this.state = State.PINNING;
+                this.state = State.SELECTING;
             }
-            else if (this.state == State.PINNING && this.aligned ()) this.state = State.READY;
+            else if (this.state == State.SELECTING && this.aligned ()) this.state = State.READY;
             else if (DrumDeviceCache.this.nanoTime.getAsLong () - this.deadline >= 0) this.begin (this.trackId);
         }
 
@@ -189,7 +189,6 @@ public final class DrumDeviceCache
             this.trackId = "";
             this.lastAccess = 0;
             this.tree.invalidate ();
-            // Also supersede a pending unpin command whose observation has not arrived yet.
             this.track.isPinned ().set (true);
         }
     }
