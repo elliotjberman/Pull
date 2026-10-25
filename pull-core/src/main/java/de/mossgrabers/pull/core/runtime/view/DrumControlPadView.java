@@ -83,7 +83,7 @@ public final class DrumControlPadView implements ControllerView
         if (!(event instanceof SnapshotChangedEvent) && !(event instanceof ControllerTickEvent))
             return List.of ();
         final ControllerMappingStorageSnapshot storage = snapshot.bridge ().controllerMappingFeedback ().storage ();
-        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
+        final SelectedTrackSnapshot selected = ResolvedNoteViewer.target (snapshot);
         final TrackMappingRegistry registry = eligible (snapshot) ? TrackMappingRegistry.parse (storage.documentId (), storage.value ()).orElse (null) : null;
         if (registry == null || registry.bank (selected.channelId ()) >= 0 || registry.full ())
         {
@@ -108,7 +108,7 @@ public final class DrumControlPadView implements ControllerView
         final ControllerMappingStorageSnapshot storage = feedback.storage ();
         final boolean eligible = eligible (snapshot);
         final TrackMappingRegistry registry = eligible ? TrackMappingRegistry.parse (storage.documentId (), storage.value ()).orElse (null) : null;
-        final int bank = registry == null ? -1 : registry.bank (snapshot.bridge ().selectedTrack ().channelId ());
+        final int bank = registry == null ? -1 : registry.bank (ResolvedNoteViewer.target (snapshot).channelId ());
         final boolean storageError = eligible && (registry == null || bank < 0 && registry.full ());
         final List<ControllerMappingId> mappingIds = bank < 0 ? List.of () : CoreControllerMappings.trackBank (bank);
         final boolean ready = bank >= 0 && mappingIds.stream ().allMatch (feedback::supports);
@@ -136,7 +136,7 @@ public final class DrumControlPadView implements ControllerView
 
     private static boolean eligible (final ControllerSnapshot snapshot)
     {
-        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
+        final SelectedTrackSnapshot selected = ResolvedNoteViewer.target (snapshot);
         return snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged () &&
             selected.exists () && selected.canHoldNotes () && TrackMappingRegistry.isUuid (selected.channelId ()) &&
             snapshot.bridge ().controllerMappingFeedback ().storage ().available ();
@@ -145,7 +145,7 @@ public final class DrumControlPadView implements ControllerView
 
     private static ControllerMappingContext context (final ControllerSnapshot snapshot)
     {
-        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
+        final SelectedTrackSnapshot selected = ResolvedNoteViewer.target (snapshot);
         final ControllerMappingStorageSnapshot storage = snapshot.bridge ().controllerMappingFeedback ().storage ();
         return new ControllerMappingContext (selected.generation (), selected.channelId (), storage.revision (), storage.documentId ());
     }

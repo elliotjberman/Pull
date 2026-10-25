@@ -66,6 +66,11 @@ public interface IMidiInput
      */
     ISelectedTrackNoteTarget createSelectedTrackTarget ();
 
+    default ISelectedTrackNoteTarget createSelectedTrackTarget (de.mossgrabers.framework.daw.IModel model)
+    {
+        return this.createSelectedTrackTarget ();
+    }
+
 
     /**
      * Sends a MIDI short message to the DAW.

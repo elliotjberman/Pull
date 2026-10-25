@@ -144,7 +144,10 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         }
         this.captureCatalog ();
         for (final Resource resource: this.resources)
+        {
+            this.submitSelection (resource);
             this.confirmProperties (resource);
+        }
         this.pool.refresh ();
         this.mixes.keySet ().removeIf (handle -> !this.pool.valid (handle));
         if (SelectionDebug.recording ())
@@ -170,18 +173,31 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
             return false;
         final Resource resource = this.resources.get (handle.slot ());
         resource.handle = handle;
+        resource.selectionPending = true;
         resource.assignedAfter = this.sequence;
         resource.matchingSamples = 0;
         resource.propertiesGeneration = 0;
         resource.invalidateSends ();
-        // The pool suppresses unchanged requests. Reused cursors still undergo an explicit
-        // selection transaction, even when Bitwig happens to report the same UUID already.
-        resource.track.isPinned ().set (false);
-        resource.track.selectChannel (target);
+        // Moving an unpinned cursor can change Bitwig's editor selection. Await the pin
+        // before navigating, including the first assignment of an unused pool resource.
         resource.track.isPinned ().set (true);
+        this.submitSelection (resource);
         if (SelectionDebug.recording ())
             SelectionDebug.record ("CURSOR_REQUEST", "slot=" + handle.slot () + " target=" + handle.trackId () + " generation=" + handle.assignmentGeneration ());
         return true;
+    }
+
+    private void submitSelection (final Resource resource)
+    {
+        final Handle handle = resource.handle;
+        if (!resource.selectionPending || handle == null || handle.projectGeneration () != this.projectGeneration || !resource.track.isPinned ().get ())
+            return;
+        final Track target = this.catalogTracks.get (handle.trackId ());
+        if (target == null || !target.exists ().get () || !handle.trackId ().equals (target.channelId ().get ()))
+            return;
+        resource.track.selectChannel (target);
+        resource.selectionPending = false;
+        resource.assignedAfter = this.sequence;
     }
 
     @Override
@@ -294,7 +310,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         final Handle handle = resource.handle;
         if (handle == null)
             return;
-        if (handle.projectGeneration () != this.projectGeneration || this.sequence <= resource.assignedAfter ||
+        if (resource.selectionPending || handle.projectGeneration () != this.projectGeneration || this.sequence <= resource.assignedAfter ||
             !resource.track.exists ().get () || !resource.track.isPinned ().get () || !handle.trackId ().equals (resource.track.channelId ().get ()))
         {
             resource.matchingSamples = 0;
@@ -361,6 +377,7 @@ final class RetainedCursorHost implements RetainedCursorPool.Host, RetainedTrack
         private long confirmedSendRevision;
         private int sendMatchingSamples;
         private Handle handle;
+        private boolean selectionPending;
         private long assignedAfter;
         private int matchingSamples;
         private long propertiesGeneration;

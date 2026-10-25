@@ -34,6 +34,7 @@ public final class ControllerLevelViews
         this.metronomePage = List.of (new TransportSettingsPageView (false, automationState));
         this.automationPage = List.of (new TransportSettingsPageView (true, automationState));
         this.controllerViews = List.of (
+            new GroupDrumTargetView (),
             new WorkspaceSelectionView (checkedSelection),
             new GlobalParameterControlsView (),
             new TransportControlView (Objects.requireNonNull (playbackCoordinator, "playbackCoordinator"), selectedTrackToggles, this.buttonGestures),
