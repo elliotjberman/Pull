@@ -105,7 +105,7 @@ public final class DrumFillView implements ControllerView
     public void reconcile (final ControllerSnapshot snapshot)
     {
         final boolean applicable = ownsFillPads (snapshot);
-        final var selected = snapshot.bridge ().selectedTrack ();
+        final var selected = ResolvedNoteViewer.target (snapshot);
         this.desiredScan = this.scanner.reconcile (selected.generation (), applicable ? selected.channelId () : "", snapshot.clipCatalog ());
         this.desiredBindings = applicable && snapshot.clipCatalog ().scan ().matches (this.desiredScan) ? canonicalBindings (snapshot) : Map.of ();
     }
@@ -178,7 +178,7 @@ public final class DrumFillView implements ControllerView
 
     private static boolean ownsFillPads (final ControllerSnapshot snapshot)
     {
-        final var selected = snapshot.bridge ().selectedTrack ();
+        final var selected = ResolvedNoteViewer.target (snapshot);
         final var drum = snapshot.bridge ().drum ();
         return snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged () &&
             selected.exists () && selected.canHoldNotes () && selected.generation () > 0 && !selected.channelId ().isEmpty () &&

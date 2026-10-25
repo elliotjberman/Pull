@@ -51,6 +51,66 @@ mvn -o -pl pull-shell -am test
 For changes touching Bitwig API objects, follow `AGENTS.md` and run the complete package build with
 deprecation reporting before the live smoke test.
 
+## Group drum target fallback (API 60)
+
+Capability audit: **B — bounded shell/API expansion**. No new physical input or output claim.
+The existing Drum Pad/VS action and feedback slice follows one core-chosen child: playable
+pads/pressure, octave, automatic roll, learned control mappings and fill clips. Mixer, Session
+and transport keep actual group selection. The shell exposes eight direct child identities,
+executes a target-fenced root assignment and preserves exact outgoing route cleanup. Core owns
+the first-instrument fallback, without skipping to another sibling based on drum discovery.
+Alternate legacy layouts and nested groups are out of scope. One shared root adds no native
+equality registrations; source/API changes require shell installation and restart.
+
+Offline coverage separates requests from native pin/track read-back, rejects replaced/removed
+children and changed group selection, and checks that pending, absent or removed drums never
+skip the first instrument child. Reordering children updates the target. Full core results retain
+the child request through subscription decorators; child acquisition neutralizes MIDI without
+interrupting a held group-volume touch. The musical owner differs from the selected mixer owner
+only after authoritative child state. An idle root releases a restored pin through later host
+read-back and resumes selection following without repeated pin writes.
+
+The implementation passed `mvn -o -Dmaven.compiler.showDeprecation=true package` on
+October 21, 2026: **1,211 tests**, zero failures, errors, skips or deprecation warnings.
+The live test exposed editor-selection changes from moving unpinned track cursors. Both the
+group root and shared retained pool now await pin read-back before selecting a target;
+regressions cover initial acquisition and reuse without changing editor selection.
+
+The October 25 pre-merge architecture review reproduced delayed group-to-group child publication
+relabeling an old child under the new selection. Each row and the retained root now observe their
+parent UUID. A partially stale bank publishes no catalog, and a stale root cannot acknowledge a
+newly scoped request. Regressions independently delay row parent/UUID and root parent/UUID,
+including reparenting and an empty destination group. The original regression failed before the
+fix. The full deprecation-enabled package passes **1,213 tests**, with zero failures, errors,
+skips or deprecation warnings; both architecture and code-size re-reviews cleared the correction.
+Its exact-build native smoke remains pending: the shared Bitwig session is in use by the
+Overboard audio-driver test. No baseline extension or audio settings were changed during this pass.
+
+Native verification in Bitwig 6.1.4 used source `2a6a3183`, shell SHA-256
+`f5eb8129000e9bb953c137ee8af49e0aa413fe044a8f77da432324b4719fed56`, and active core
+`20261022T013551Z-e93e41ab48e6f44a843f5375b08ccdf1` (SHA-256
+`6f110519b1325941552254cc6285f608f670d9ab5241390893c3869c951b35b8`). Under one live lease:
+
+- College Town: AllDrum remained selected while Drums owned native notes, drum discovery and
+  fill scanning. Samples stayed separate. With the child temporarily armed and group muted,
+  note 36 read back at velocity 100, then zero on release. Octave moved the child's bank
+  36 → 52 → 36. Selecting Samples and returning while holding a pad kept drum output inactive
+  until release; a subsequent new press played normally.
+- `alien2_revival`: both trees reported two machines without overflow; the populated-note union
+  and transmitted pad lights included Dry and Spread. Native notes 36 and 38 read back at
+  velocity 100 and cleared on release. `fill_breakdown` became the host-confirmed active fill,
+  then retired after release; its light returned from active orange to available brown.
+- Temporary arm/mute and playback changes were discarded by reopening the saved project
+  baseline. No device or routing edits were made. Diagnostics were disabled after testing.
+
+Representative traces in `~/.drivenbymoss/pull/debug/`: group note
+`1792633005-54049-3192`, held-selection recovery `1792633079-54708-24902`, alien2 note
+`1792633137-55116-7233`, and fill `1792633164-55264-4817` / `1792633165-55329-2033`.
+
+Scope: group fill **catalog targeting** was observed; College Town had no fill-named child clip
+to launch. Actual fill launch/return was exercised in alien2. Bitwig-learned mappings require
+physical MIDI and were not actuated by the synthetic surface test.
+
 ## Composite Drum discovery (API 59)
 
 Offline regressions separate native cursor requests, applied host state and observer delivery.

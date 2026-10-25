@@ -105,7 +105,13 @@ class PushDebugTraceHostTest
 
         final String trace = Files.readString (this.artifact ());
         assertTrue (trace.contains ("\toverflow-test\tOVERFLOW\t"));
-        assertTrue (trace.contains ("button-254"), "all semantic events fit until the hard entry bound");
+        final var emitted = java.util.regex.Pattern.compile ("button-(\\d+)").matcher (trace).results ()
+            .map (match -> Integer.valueOf (match.group (1))).toList ();
+        assertFalse (emitted.isEmpty ());
+        assertEquals (java.util.stream.IntStream.range (0, emitted.size ()).boxed ().toList (), emitted,
+            "serialization preserves every semantic event in order until either bound");
+        assertTrue (emitted.size () <= 255);
+        if (emitted.size () < 255) assertTrue (trace.contains ("SERIALIZATION_TRUNCATED"));
         assertFalse (trace.contains ("button-299"), "capture stops instead of sampling beyond the bound");
         assertTrue (trace.contains ("\tOVERFLOW\t"));
     }

@@ -66,6 +66,7 @@ public class ModelImpl extends AbstractModel
     private static final String            DRUM_DEVICE_CURSOR_ID   = "DRUM_DEVICE";
 
     private final DrumDeviceTree drumTree;
+    private final CursorTrack drumRoot;
     private final ControllerHost           controllerHost;
     private final CursorTrack              bwCursorTrack;
     private final Track                    rootTrackGroup;
@@ -165,7 +166,9 @@ public class ModelImpl extends AbstractModel
         final PinnableCursorDevice mainCursorDevice = this.bwCursorTrack.createCursorDevice ("CURSOR_DEVICE", "Cursor device", numSends, CursorDeviceFollowMode.FOLLOW_SELECTION);
         this.cursorDevice = new CursorDeviceImpl (this.host, this.valueChanger, mainCursorDevice, modelSetup);
 
-        this.drumTree = new DrumDeviceTree (this.bwCursorTrack, DRUM_DEVICE_CURSOR_ID);
+        this.drumRoot = this.modelSetup.wantsGroupDrumTarget () ? controllerHost.createCursorTrack ("PULL_DRUM_ROOT", "Pull Drum Target", 0, 0, true) : this.bwCursorTrack;
+        this.drumRoot.isPinned ().markInterested ();
+        this.drumTree = new DrumDeviceTree (this.drumRoot, DRUM_DEVICE_CURSOR_ID);
         for (final DrumDeviceTree.Slot slot : this.drumTree.slotsForDrums ())
             this.drumDevices.add (this.treeDrumDevice (slot, numParamPages, numParams, numDeviceLayers, numDrumPadLayers));
         this.drumDevice = this.drumDevices.get (0);
@@ -205,6 +208,10 @@ public class ModelImpl extends AbstractModel
         final List<DrumDeviceTree.Slot> slots = this.drumTree.slotsForDrums ();
         return selected.stream ().map (slot -> this.drumDevices.get (slots.indexOf (slot))).toList ();
     }
+
+    public CursorTrack getDrumRoot () { return this.drumRoot; }
+    @Override public String getDrumTrackId () { return this.drumRoot.channelId ().get (); }
+    @Override public boolean isDrumTrackReady () { return this.drumRoot.exists ().get (); }
 
     @Override public boolean isDrumDeviceSearchLimited () { return this.drumTree.limited (); }
 
