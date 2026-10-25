@@ -7,7 +7,10 @@ remaining shell handlers. The optional Clip piano roll is deferred unchanged.
 API 60 adds a bounded group-child track window and an explicitly requested musical target.
 Core chooses the first direct instrument child and stays there regardless of drum discovery;
 actual selection continues to own mixer and transport actions. The existing model tree is reused; no per-child drum tree or equality matrix
-is added. The matched `2a6a3183` shell/core passed native group targeting and the alien2 smoke
+is added. Nine thin parent-track observations fence each child row and the retained target to
+the selected group; delayed bank publication cannot relabel the previous group's drums.
+This parent-membership correction passed the offline gate; its matched native smoke is pending.
+The preceding `2a6a3183` shell/core passed native group targeting and the alien2 smoke
 in Bitwig 6.1.4; [TESTING](TESTING.md#group-drum-target-fallback-api-60) records scope and build
 identities. Group and retained track cursors await pin read-back before navigation so discovery
 cannot change editor selection. The temporary policy and its limits are

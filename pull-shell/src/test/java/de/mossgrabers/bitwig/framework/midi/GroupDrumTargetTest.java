@@ -73,9 +73,84 @@ class GroupDrumTargetTest
         assertEquals ("", f.target.snapshot ().scannedTrackId ());
     }
 
+    @Test void delayedChildBankCannotBeRelabeledAsTheNewGroup ()
+    {
+        final Fixture f = new Fixture ();
+        f.hasDrums = true;
+        final var old = f.target.snapshot ();
+        final var request = new DesiredDrumTarget (old.selectionGeneration (), old.selectionId (), old.revision (), "drums");
+        f.target.refresh (request); f.advance (); f.target.refresh (request); f.advance (); f.target.refresh (request);
+        assertTrue (f.target.snapshot ().hasDrums ());
+
+        f.selectedId = "new-group"; // Selection arrives before the child bank or retained root.
+        final var delayed = f.target.snapshot ();
+        assertTrue (delayed.children ().isEmpty (), "old children cannot be stamped with the new selection");
+        final var stale = new DesiredDrumTarget (delayed.selectionGeneration (), delayed.selectionId (), delayed.revision (), "drums");
+        for (int i = 0; i < 3; i++) f.target.refresh (stale);
+        assertFalse (f.target.valid ());
+        assertFalse (f.target.snapshot ().hasDrums ());
+        assertEquals ("", f.target.snapshot ().scannedTrackId ());
+        f.advance ();
+        assertEquals ("new-group", f.selectedId);
+
+        f.childId = "new-drums";
+        f.childParentId = "new-group"; // Later host delivery establishes the new child owner.
+        final var current = f.target.snapshot ();
+        assertEquals (List.of ("new-drums"), current.children ().stream ().map (c -> c.channelId ()).toList ());
+        final var next = new DesiredDrumTarget (current.selectionGeneration (), current.selectionId (), current.revision (), "new-drums");
+        f.target.refresh (next); f.advance (); f.target.refresh (next); f.advance (); f.target.refresh (next);
+        assertTrue (f.target.valid ());
+        assertEquals ("new-drums", f.target.snapshot ().scannedTrackId ());
+        assertEquals ("new-group", f.selectedId);
+
+        f.childParentId = "elsewhere"; // Moving the child away revokes it even if its UUID is unchanged.
+        assertFalse (f.target.target ().doesExist ());
+        assertFalse (f.target.snapshot ().hasDrums ());
+    }
+
+    @Test void eachRowAndTheRetainedRootNeedTheirOwnParentReadback ()
+    {
+        final Fixture f = new Fixture ();
+        f.hasDrums = true;
+        final var old = f.target.snapshot ();
+        final var oldRequest = new DesiredDrumTarget (old.selectionGeneration (), old.selectionId (), old.revision (), "drums");
+        f.target.refresh (oldRequest); f.advance (); f.target.refresh (oldRequest); f.advance (); f.target.refresh (oldRequest);
+        assertTrue (f.target.valid ());
+
+        f.selectedId = f.childParentId = "new-group"; // Row parent arrives before its UUID.
+        final var partial = f.target.snapshot ();
+        final var request = new DesiredDrumTarget (partial.selectionGeneration (), partial.selectionId (), partial.revision (), "drums");
+        f.target.refresh (request); f.target.refresh (request); f.target.refresh (request);
+        assertFalse (f.target.valid (), "the old root cannot acknowledge a newly scoped request");
+        f.advance ();
+        f.target.refresh (request);
+        assertFalse (f.target.valid (), "even a submitted stale row still resolves to its old parent");
+
+        f.childId = "new-drums";
+        f.secondChildId = "old-samples";
+        f.secondParentId = "group";
+        assertTrue (f.target.snapshot ().children ().isEmpty (), "one updated row cannot vouch for another stale row");
+        f.secondChildId = ""; // New group has only one child.
+        final var current = f.target.snapshot ();
+        final var next = new DesiredDrumTarget (current.selectionGeneration (), current.selectionId (), current.revision (), "new-drums");
+        f.target.refresh (next); f.advance (); f.target.refresh (next); f.advance ();
+        f.rootParentId = "group"; // Root UUID arrives before its parent read-back.
+        f.target.refresh (next);
+        assertFalse (f.target.snapshot ().hasDrums ());
+        f.rootParentId = "new-group";
+        f.target.refresh (next);
+        assertTrue (f.target.snapshot ().hasDrums ());
+        assertEquals ("new-group", f.selectedId);
+
+        f.selectedId = "empty-group";
+        f.childId = "";
+        assertTrue (f.target.snapshot ().children ().isEmpty ());
+        assertFalse (f.target.valid ());
+    }
+
     private static final class Fixture
     {
-        String selectedId = "group", rootId = "group", childId = "drums";
+        String selectedId = "group", rootId = "group", childId = "drums", childParentId = "group", rootParentId = "", secondChildId = "", secondParentId = "";
         boolean pinned, hasDrums;
         final List<Runnable> submitted = new ArrayList<> ();
         final List<String> routes = new ArrayList<> ();
@@ -85,13 +160,14 @@ class GroupDrumTargetTest
         {
             final CursorTrack child = track (() -> this.childId, false);
             final CursorTrack empty = track (() -> "", false);
+            final CursorTrack second = track (() -> this.secondChildId, false, null, () -> this.secondParentId);
             final TrackBank bank = proxy (TrackBank.class, (p, m, a) -> switch (m.getName ()) {
-                case "itemCount" -> value (IntegerValue.class, () -> 1);
-                case "getItemAt" -> ((Integer) a[0]) == 0 ? child : empty;
+                case "itemCount" -> value (IntegerValue.class, () -> this.secondChildId.isEmpty () ? 1 : 2);
+                case "getItemAt" -> ((Integer) a[0]) == 0 ? child : ((Integer) a[0]) == 1 ? second : empty;
                 default -> relaxedValue (m.getReturnType ());
             });
             final CursorTrack selection = track (() -> this.selectedId, true, bank);
-            final CursorTrack root = track (() -> this.rootId, false);
+            final CursorTrack root = track (() -> this.rootId, false, null, () -> this.rootParentId);
             final var host = new HostImpl (relaxedProxy (ControllerHost.class));
             final var input = new NoteInputImpl (relaxedProxy (NoteInput.class));
             final var state = new SelectedTrackTargetState (host, selection, input, false);
@@ -115,6 +191,10 @@ class GroupDrumTargetTest
         CursorTrack track (Supplier<String> id, boolean group) { return this.track (id, group, null); }
         CursorTrack track (Supplier<String> id, boolean group, TrackBank children)
         {
+            return this.track (id, group, children, () -> this.childParentId);
+        }
+        CursorTrack track (Supplier<String> id, boolean group, TrackBank children, Supplier<String> parentId)
+        {
             return proxy (CursorTrack.class, (p, m, a) -> switch (m.getName ()) {
                 case "channelId" -> value (StringValue.class, id);
                 case "name" -> value (SettableStringValue.class, id);
@@ -122,12 +202,13 @@ class GroupDrumTargetTest
                 case "isGroup" -> value (BooleanValue.class, () -> group);
                 case "canHoldNoteData" -> value (SettableBooleanValue.class, () -> !group);
                 case "createTrackBank" -> children;
+                case "createParentTrack" -> track (parentId, true);
                 case "isPinned" -> proxy (SettableBooleanValue.class, (x, method, args) -> {
                     if (method.getName ().equals ("get")) return this.pinned;
                     if (method.getName ().equals ("set")) { final boolean next = (Boolean) args[0]; this.submitted.add (() -> { this.pinned = next; if (!next) this.rootId = this.selectedId; }); }
                     return relaxedValue (method.getReturnType ());
                 });
-                case "selectChannel" -> { final String next = ((Track) a[0]).channelId ().get (); this.submitted.add (() -> { this.rootId = next; if (!this.pinned) this.selectedId = next; }); yield null; }
+                case "selectChannel" -> { final String next = ((Track) a[0]).channelId ().get (); this.submitted.add (() -> { this.rootId = next; this.rootParentId = next.equals ("drums") ? "group" : this.childParentId; if (!this.pinned) this.selectedId = next; }); yield null; }
                 case "addNoteSource", "removeNoteSource" -> { this.routes.add (id.get () + (m.getName ().equals ("addNoteSource") ? ":on" : ":off")); yield null; }
                 default -> relaxedValue (m.getReturnType ());
             });

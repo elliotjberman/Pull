@@ -16,6 +16,8 @@ final class GroupDrumTarget
     private final de.mossgrabers.framework.daw.IModel model;
     private final CursorTrack root;
     private final TrackBank children;
+    private final Track[] childParents = new Track[GroupDrumScanSnapshot.CAPACITY];
+    private final Track rootParent;
     private final SelectedTrackTargetState childTarget;
     private DesiredDrumTarget request = DesiredDrumTarget.inactive ();
     private List<GroupDrumScanSnapshot.Child> catalog = List.of ();
@@ -30,12 +32,18 @@ final class GroupDrumTarget
         this.selected = selected;
         this.model = model;
         this.root = root;
+        this.rootParent = root.createParentTrack (0, 0);
+        this.rootParent.exists ().markInterested ();
+        this.rootParent.channelId ().markInterested ();
         this.children = selected.createTrackBank (GroupDrumScanSnapshot.CAPACITY, 0, 0, false);
         this.children.itemCount ().markInterested ();
         this.children.itemCount ().addValueObserver (ignored -> this.revision++);
         for (int i = 0; i < GroupDrumScanSnapshot.CAPACITY; i++)
         {
             final Track child = this.children.getItemAt (i);
+            this.childParents[i] = child.createParentTrack (0, 0);
+            this.childParents[i].exists ().markInterested ();
+            this.childParents[i].channelId ().markInterested ();
             child.exists ().markInterested ();
             child.channelId ().markInterested ();
             child.canHoldNoteData ().markInterested ();
@@ -57,6 +65,13 @@ final class GroupDrumTarget
             for (int i = 0; i < GroupDrumScanSnapshot.CAPACITY; i++)
             {
                 final Track child = this.children.getItemAt (i);
+                // A selection UUID can arrive before this bank's rows. Never stamp the old
+                // group's children with the new selection, or skip an unacknowledged earlier row.
+                if (child.exists ().get () && !this.belongsToSelection (this.childParents[i]))
+                {
+                    observed.clear ();
+                    break;
+                }
                 final String id = child.channelId ().get ();
                 if (child.exists ().get () && id != null && !id.isBlank ())
                     observed.add (new GroupDrumScanSnapshot.Child (id, child.canHoldNoteData ().get () && !child.isGroup ().get ()));
@@ -69,6 +84,11 @@ final class GroupDrumTarget
         }
     }
 
+    private boolean belongsToSelection (Track parent)
+    {
+        return parent.exists ().get () && this.selection.getChannelID ().equals (parent.channelId ().get ());
+    }
+
     private Track source (DesiredDrumTarget desired)
     {
         this.observeCatalog ();
@@ -78,14 +98,14 @@ final class GroupDrumTarget
         for (int i = 0; i < GroupDrumScanSnapshot.CAPACITY; i++)
         {
             final Track track = this.children.getItemAt (i);
-            if (track.exists ().get () && desired.trackId ().equals (track.channelId ().get ()) && track.canHoldNoteData ().get () && !track.isGroup ().get ()) return track;
+            if (this.belongsToSelection (this.childParents[i]) && track.exists ().get () && desired.trackId ().equals (track.channelId ().get ()) && track.canHoldNoteData ().get () && !track.isGroup ().get ()) return track;
         }
         return null;
     }
 
     boolean valid ()
     {
-        return this.phase == 2 && this.source (this.request) != null && this.root.isPinned ().get () &&
+        return this.phase == 2 && this.source (this.request) != null && this.belongsToSelection (this.rootParent) && this.root.isPinned ().get () &&
             this.root.exists ().get () && this.request.trackId ().equals (this.root.channelId ().get ());
     }
 
@@ -118,7 +138,7 @@ final class GroupDrumTarget
             this.root.selectChannel (source);
             this.phase = 1;
         }
-        else if (this.phase == 1 && this.root.isPinned ().get () && this.root.exists ().get () && checked.trackId ().equals (this.root.channelId ().get ()))
+        else if (this.phase == 1 && this.belongsToSelection (this.rootParent) && this.root.isPinned ().get () && this.root.exists ().get () && checked.trackId ().equals (this.root.channelId ().get ()))
             this.phase = 2;
         else if (!this.valid () && System.nanoTime () - this.deadline >= 0)
         {

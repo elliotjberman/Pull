@@ -76,6 +76,16 @@ The live test exposed editor-selection changes from moving unpinned track cursor
 group root and shared retained pool now await pin read-back before selecting a target;
 regressions cover initial acquisition and reuse without changing editor selection.
 
+The October 25 pre-merge architecture review reproduced delayed group-to-group child publication
+relabeling an old child under the new selection. Each row and the retained root now observe their
+parent UUID. A partially stale bank publishes no catalog, and a stale root cannot acknowledge a
+newly scoped request. Regressions independently delay row parent/UUID and root parent/UUID,
+including reparenting and an empty destination group. The original regression failed before the
+fix. The full deprecation-enabled package passes **1,213 tests**, with zero failures, errors,
+skips or deprecation warnings; both architecture and code-size re-reviews cleared the correction.
+Its exact-build native smoke remains pending: the shared Bitwig session is in use by the
+Overboard audio-driver test. No baseline extension or audio settings were changed during this pass.
+
 Native verification in Bitwig 6.1.4 used source `2a6a3183`, shell SHA-256
 `f5eb8129000e9bb953c137ee8af49e0aa413fe044a8f77da432324b4719fed56`, and active core
 `20261022T013551Z-e93e41ab48e6f44a843f5375b08ccdf1` (SHA-256

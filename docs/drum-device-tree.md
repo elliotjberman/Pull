@@ -101,6 +101,10 @@ retargets the existing model tree. The child window observes track identity and 
 it adds no device banks or native equality registrations. Actual selection and its independent
 private observer stay on the group. Child UUID, selection generation,
 catalog revision, model/group alignment and later pin/UUID read-back fence the musical owner.
+Eight thin parent-track observations fence the child rows; any existing row with a mismatched
+parent withholds the whole catalog. The retained root has its own parent witness, so a new
+group request cannot be acknowledged by the previous group's pinned child. These nine parent
+proxies add no native equality registrations.
 An outgoing native note route is detached before its cursor can be reassigned. Mixer and
 Session/transport actions retain actual selection; drum-specific behavior uses the child.
 Core API 60 requires a matched shell install/restart. See the [temporary policy and TODO](findings/group-drum-target-selection.md).
