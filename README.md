@@ -38,10 +38,10 @@ prerequisites live in the [migration inventory](docs/reloadable-core-migration-r
 
 ## Live-set setup
 
-Session selects the full 8×8 launcher grid. Shift + Session selects VS Live: an upper 8×4 Session
-grid, lower Drum Controller, Project Macros and track-selection strip. Page changes retain the
-musical background. An interaction whose target or binding disappears cancels; its remaining
-physical motion/release cannot act on a replacement target.
+Pull starts in VS Live with the upper 8×4 Session grid, lower Drum Controller, Project Macros
+and track-selection strip. Session selects the full 8×8 launcher grid. Shift + Session returns
+to VS Live. Page changes retain the musical background. An interaction whose target or binding
+disappears cancels; its remaining physical motion/release cannot act on a replacement target.
 
 While Note is selected, Pull resolves Drum Controller, the stored melodic layout or Clip Length
 from the selected track's observed capabilities. The private selection-following cursor must agree

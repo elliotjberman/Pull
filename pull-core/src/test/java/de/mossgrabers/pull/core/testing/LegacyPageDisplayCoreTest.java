@@ -44,7 +44,7 @@ class LegacyPageDisplayCoreTest
         final var provider = new PullCoreProvider ();
         final var host = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ());
         host.initialBridge (sessionBridge ("CLIP", clip (false)));
-        host.start (Optional.empty ());
+        host.resumeOrdinaryWorkspace ();
         host.requestPage (LegacyControllerPageRequest.Operation.SELECT, "CLIP");
         assertTrue (text (host).contains ("Play Start"));
         final var routes = host.effects ().desiredInputRoutes ().routes ();

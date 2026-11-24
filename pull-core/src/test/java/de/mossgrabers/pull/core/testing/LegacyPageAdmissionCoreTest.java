@@ -7,7 +7,6 @@ import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import static de.mossgrabers.pull.core.api.LegacyControllerPageRequest.Operation.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -22,7 +21,7 @@ class LegacyPageAdmissionCoreTest
         final var provider = new PullCoreProvider ();
         final var host = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ());
         host.initialBridge (bridge (100, List.of ()));
-        host.start (Optional.empty ());
+        host.resumeOrdinaryWorkspace ();
         host.requestPage (SELECT, "INFO");
         host.controllerButton (PushControlIds.button ("SHIFT"), true);
         host.parameterMutation (PushControlIds.continuous ("TEMPO"), new ParameterTargetSnapshot (TARGET, 100, 0));
@@ -115,7 +114,7 @@ class LegacyPageAdmissionCoreTest
         final var provider = new PullCoreProvider ();
         final var host = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ());
         host.initialBridge (bridge (100, List.of ()));
-        host.start (Optional.empty ());
+        host.resumeOrdinaryWorkspace ();
         host.controllerButton (PushControlIds.button ("SHIFT"), true);
         host.parameterMutation (PushControlIds.continuous ("TEMPO"), new ParameterTargetSnapshot (TARGET, 100, 0));
         return host;

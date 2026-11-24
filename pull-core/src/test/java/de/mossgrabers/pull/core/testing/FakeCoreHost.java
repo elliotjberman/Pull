@@ -21,6 +21,7 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.ParameterMutationEvent;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.event.TouchInputEvent;
+import de.mossgrabers.pull.core.runtime.WorkspaceCheckpoints;
 
 import java.time.Duration;
 import java.util.LinkedHashSet;
@@ -126,6 +127,12 @@ final class FakeCoreHost
     void start (final Optional<StateEnvelope> previousState)
     {
         this.effectExecutor.apply (this.core.start (this.snapshot (), previousState));
+    }
+
+
+    void resumeOrdinaryWorkspace ()
+    {
+        this.start (Optional.of (WorkspaceCheckpoints.ordinary (this.bridge.layout ().modeId ())));
     }
 
 

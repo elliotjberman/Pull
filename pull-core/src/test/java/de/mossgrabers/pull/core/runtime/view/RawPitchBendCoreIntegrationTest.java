@@ -24,6 +24,7 @@ import de.mossgrabers.pull.core.api.event.InputPhase;
 import de.mossgrabers.pull.core.api.event.SnapshotChangedEvent;
 import de.mossgrabers.pull.core.api.output.DesiredTouchStrip;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
+import de.mossgrabers.pull.core.runtime.WorkspaceCheckpoints;
 
 import org.junit.jupiter.api.Test;
 
@@ -165,7 +166,7 @@ class RawPitchBendCoreIntegrationTest
 
         private CoreResult start ()
         {
-            return this.core.start (this.snapshot (), Optional.empty ());
+            return this.core.start (this.snapshot (), Optional.of (WorkspaceCheckpoints.ordinary (this.mode)));
         }
 
 

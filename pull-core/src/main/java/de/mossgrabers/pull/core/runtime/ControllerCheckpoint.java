@@ -19,7 +19,7 @@ record ControllerCheckpoint (WorkspaceSelection.Id workspace, WorkspaceSelection
 {
     static ControllerCheckpoint empty ()
     {
-        return new ControllerCheckpoint (WorkspaceSelection.Id.DEFAULT, WorkspaceSelection.Destination.NONE, WorkspaceSelection.Destination.NONE, "", false, false, 0, Optional.empty ());
+        return new ControllerCheckpoint (WorkspaceSelection.Id.VS_LIVE, WorkspaceSelection.Destination.NONE, WorkspaceSelection.Destination.NONE, "", false, false, 0, Optional.empty ());
     }
 
     StateEnvelope encode ()

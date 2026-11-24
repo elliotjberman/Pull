@@ -7,7 +7,6 @@ import de.mossgrabers.pull.core.api.effect.ToggleApplicationPanelEffect;
 import de.mossgrabers.pull.core.runtime.PullCoreProvider;
 import org.junit.jupiter.api.Test;
 import java.util.List;
-import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Routed page transitions cancel lost bindings and preserve exact temporary-page ownership. */
@@ -83,7 +82,7 @@ class CorePageGestureCaptureTest
         final var provider = new PullCoreProvider ();
         final var host = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ());
         host.initialBridge (bridge (ui (1, "project-a")));
-        host.start (Optional.empty ());
+        host.resumeOrdinaryWorkspace ();
         return host;
     }
 
