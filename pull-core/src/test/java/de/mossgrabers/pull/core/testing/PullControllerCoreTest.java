@@ -963,33 +963,6 @@ class PullControllerCoreTest
     }
 
 
-    @ParameterizedTest
-    @ValueSource (booleans = { false, true })
-    void freshStartupSelectsTheSameGridAndMacroPageAsShiftSession (final boolean sessionAlreadyVisible)
-    {
-        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
-        if (sessionAlreadyVisible)
-            host.initialBridge (sessionBridge (4, "SESSION", "TRACK", ControllerPages.FULL_SESSION_BANK));
-        host.start (Optional.empty ());
-
-        assertVsLive (host.effects ().desiredControllerWorkspace ());
-        assertPage (host, "WORKSPACE");
-        final var filter = parameter (ParameterSlot.projectRemote (0), "Filter", 84, "66%");
-        host.bridge (withParameters (sessionBridge (5, "WORKSPACE", "WORKSPACE", ControllerPages.VS_LIVE_BANK), filter));
-        final List<DisplayCommand> startupMacros = macroCommands (host);
-        assertTrue (startupMacros.stream ().anyMatch (command -> command instanceof final DisplayCommand.TextBox text && "Filter".equals (text.text ())));
-
-        pressAndRelease (host, SESSION_BUTTON);
-        host.bridge (sessionBridge (6, "SESSION", "TRACK", ControllerPages.FULL_SESSION_BANK));
-        assertSelectedSession (host.effects ().desiredControllerWorkspace ());
-        enterVsLive (host);
-        assertVsLive (host.effects ().desiredControllerWorkspace ());
-        assertPage (host, "WORKSPACE");
-        host.bridge (withParameters (sessionBridge (7, "WORKSPACE", "WORKSPACE", ControllerPages.VS_LIVE_BANK), filter));
-        assertEquals (startupMacros, macroCommands (host));
-    }
-
-
     @Test
     void sessionOwnsStopClipActionAndAuthoritativeButtonFeedback ()
     {
@@ -1187,7 +1160,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
         host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", ControllerPages.VS_LIVE_BANK));
         assertVsLive (host.effects ().desiredControllerWorkspace ());
 
@@ -1212,7 +1184,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
         host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", ControllerPages.VS_LIVE_BANK));
         host.legacyPageSelection (sessionBridge (3, "DRUM_PAD", "TRACK", ControllerPages.VS_LIVE_BANK));
         assertEquals (ControllerPages.VS_LIVE_NAME + " / track", host.effects ().desiredControllerWorkspace ().name ());
@@ -1230,7 +1201,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
         host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", ControllerPages.VS_LIVE_BANK));
 
         // Selected-track Note routing uses TRACK as a temporary stable safety layout. Without a
@@ -1248,7 +1218,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
         host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", ControllerPages.VS_LIVE_BANK));
         final ParameterTargetSnapshot send = parameter (ParameterSlot.selectedTrackSend (0), "Reverb", 256, "25 %");
         host.legacyPageSelection (sessionMixBridge (Map.of (
@@ -1273,7 +1242,6 @@ class PullControllerCoreTest
         final ControlId secondTrackButton = PushControlIds.button ("ROW1_2");
         final RgbColor secondTrackColor = new RgbColor (25, 50, 100);
         host.start (Optional.empty ());
-        enterVsLive (host);
         host.bridge (trackSelectionBridge (2, false));
 
         assertEquals (Optional.of (InputRouteMode.EXCLUSIVE), host.effects ().desiredInputRoutes ().mode (secondTrackButton, InputKind.BUTTON));
@@ -1310,7 +1278,6 @@ class PullControllerCoreTest
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         final ControlId secondTrackButton = PushControlIds.button ("ROW1_2");
         host.start (Optional.empty ());
-        enterVsLive (host);
         host.bridge (trackSelectionBridge (2, false, "WORKSPACE"));
         host.legacyPageSelection (trackSelectionBridge (3, false, "TRACK"));
 
@@ -1331,7 +1298,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
         host.bridge (sessionBridge (2, "DRUM_PAD", "WORKSPACE", ControllerPages.VS_LIVE_BANK));
         final int effectsBeforeGesture = host.effects ().executionOrder ().size ();
 
@@ -1350,7 +1316,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
         host.bridge (trackSelectionBridge (2, false, "WORKSPACE"));
         final int effectsBeforeGesture = host.effects ().executionOrder ().size ();
 
@@ -1372,7 +1337,6 @@ class PullControllerCoreTest
         final ParameterSlot slot = ParameterSlot.projectRemote (0);
         final ParameterTargetSnapshot baseline = parameter (slot, "Project Macro", 100, "100");
         host.start (Optional.empty ());
-        enterVsLive (host);
         host.bridge (withParameters (trackSelectionBridge (2, false), baseline));
         assertEquals (
             Set.of (ControllerActionId.SELECT_VISIBLE_TRACK, ControllerActionId.STOP_VISIBLE_SESSION_TRACK),
@@ -1558,7 +1522,6 @@ class PullControllerCoreTest
         final ParameterSlot slot = ParameterSlot.projectRemote (0);
         final ParameterTargetSnapshot baseline = parameter (slot, "Project Macro", 100, "100");
         host.start (Optional.empty ());
-        enterVsLive (host);
         host.bridge (withBaselineControllerSettings (withParameters (trackSelectionBridge (2, false), baseline)));
         host.controllerButton (SHIFT_BUTTON, true);
         host.parameterMutation (PushControlIds.continuous ("KNOB1"), baseline);
@@ -1574,7 +1537,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
 
         host.bridge (masterBridge (true, true, false));
 
@@ -1586,7 +1548,7 @@ class PullControllerCoreTest
     void enteringMasterFromStandaloneDrumPreservesTheActualDrumComposition ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
-        host.start (Optional.empty ());
+        host.resumeOrdinaryWorkspace ();
         final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
         final NoteViewSnapshot preference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.DRUM_PAD, true);
         final NoteRepeatSnapshot repeat = new NoteRepeatSnapshot (true, true, false, NoteRepeatMode.RANDOM, 2, 1.0 / 3.0, 0.25, true, true, false, false);
@@ -1865,7 +1827,7 @@ class PullControllerCoreTest
 
 
     @Test
-    void userAndShiftSessionRenderTheSameObservedProjectMacros ()
+    void userPageAndVsLiveRenderTheSameObservedProjectMacros ()
     {
         final ControlId user = PushControlIds.button ("USER");
         final FakeCoreHost standalone = host (ClipCatalogSnapshot.empty ());
@@ -1878,7 +1840,6 @@ class PullControllerCoreTest
         final var grid = standalone.effects ().desiredControllerWorkspace ().sessionBankShape ();
         standalone.controllerButton (user, true);
         standalone.controllerButton (user, false);
-        enterVsLive (vs);
 
         assertPage (standalone, "WORKSPACE");
         assertEquals (grid, standalone.effects ().desiredControllerWorkspace ().sessionBankShape ());
@@ -1906,7 +1867,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
         final ControlId user = PushControlIds.button ("USER");
         host.controllerButton (PushControlIds.button ("MASTERTRACK"), true);
         host.controllerButton (PushControlIds.button ("MASTERTRACK"), false);
@@ -1964,52 +1924,24 @@ class PullControllerCoreTest
 
 
     @Test
-    void shiftSessionSelectsVsLiveAndPlainSessionReturnsToTheStableWorkspace ()
+    void freshStartupOpensVsLiveAndSessionCanSwitchAwayAndBack ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
-        host.resumeOrdinaryWorkspace ();
-
-        assertEquals (DesiredControllerWorkspace.empty (), host.effects ().desiredControllerWorkspace ());
-
-        host.controllerButton (SHIFT_BUTTON, true);
-        host.controllerButton (SESSION_BUTTON, true);
-        host.controllerButton (SESSION_BUTTON, false);
-        host.controllerButton (SHIFT_BUTTON, false);
-
-        assertVsLive (host.effects ().desiredControllerWorkspace ());
-        assertEquals (Optional.empty (), host.effects ().desiredInputRoutes ().mode (LAYOUT_BUTTON, InputKind.BUTTON));
-
-        host.controllerButton (SESSION_BUTTON, true);
-
-        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
-
-        host.bridge (layoutBridge ("SESSION", "TRACK"));
-        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
-        host.controllerButton (SESSION_BUTTON, false);
-        assertSelectedSession (host.effects ().desiredControllerWorkspace ());
-    }
-
-
-    @Test
-    void vsLiveCanExitAndReenterWithItsCompleteOwnershipRestored ()
-    {
-        final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
+        host.initialBridge (sessionBridge (1, "SESSION", "TRACK", ControllerPages.FULL_SESSION_BANK));
         host.start (Optional.empty ());
+        final var startup = host.effects ().desiredControllerWorkspace ();
+        assertVsLive (startup);
+        assertPage (host, "WORKSPACE");
 
-        enterVsLive (host);
         host.controllerButton (SESSION_BUTTON, true);
         assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
-        host.bridge (layoutBridge ("SESSION", "TRACK"));
-        assertStableSessionDestination (host.effects ().desiredControllerWorkspace ());
+        host.bridge (sessionBridge (2, "SESSION", "TRACK", ControllerPages.FULL_SESSION_BANK));
         host.controllerButton (SESSION_BUTTON, false);
         assertSelectedSession (host.effects ().desiredControllerWorkspace ());
 
         enterVsLive (host);
-
-        assertVsLive (host.effects ().desiredControllerWorkspace ());
-        assertEquals (Optional.of (InputRouteMode.OBSERVE), host.effects ().desiredInputRoutes ().mode (PushControlIds.pad (10), InputKind.POLY_PRESSURE));
-        assertEquals (Set.of (BridgeSubscription.CONTROLLER_SETTINGS, BridgeSubscription.CURRENT_TRACK_BANK, BridgeSubscription.TRANSPORT_SETTINGS, BridgeSubscription.AUTOMATION, BridgeSubscription.SELECTED_TRACK, BridgeSubscription.SESSION_BANK, BridgeSubscription.SESSION_CLIPS, BridgeSubscription.TRANSPORT, BridgeSubscription.CONTROLLER_LAYOUT, BridgeSubscription.NOTE_VIEW, BridgeSubscription.NOTE_REPEAT, BridgeSubscription.DRUM_PADS, BridgeSubscription.PARAMETERS, BridgeSubscription.CONTROLLER_MAPPING_FEEDBACK, BridgeSubscription.PROJECT, BridgeSubscription.BROWSER, BridgeSubscription.CONTROLLER_PAGES, BridgeSubscription.MASTER), host.effects ().desiredBridgeSubscriptions ().domains ());
-        assertEquals (Set.of (ParameterBankId.PROJECT_REMOTE, ParameterBankId.GLOBAL), host.effects ().desiredParameterBanks ().banks ());
+        assertEquals (startup, host.effects ().desiredControllerWorkspace ());
+        assertPage (host, "WORKSPACE");
     }
 
 
@@ -2067,7 +1999,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost first = host (ClipCatalogSnapshot.empty ());
         first.start (Optional.empty ());
-        enterVsLive (first);
         first.legacyPageSelection (sessionBridge (3, "DRUM_PAD", "TRACK", ControllerPages.VS_LIVE_BANK));
         first.controllerButton (PushControlIds.button ("ROW2_2"), true);
         first.controllerButton (PushControlIds.button ("ROW2_2"), false);
@@ -2101,27 +2032,10 @@ class PullControllerCoreTest
 
 
     @Test
-    void checkpointRestoresVsLiveWithoutReplayingTheShortcut ()
-    {
-        final FakeCoreHost first = host (ClipCatalogSnapshot.empty ());
-        first.resumeOrdinaryWorkspace ();
-        first.controllerButton (SHIFT_BUTTON, true);
-        first.controllerButton (SESSION_BUTTON, true);
-
-        final PullCoreProvider provider = new PullCoreProvider ();
-        final FakeCoreHost restored = new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ());
-        restored.start (Optional.of (first.checkpoint ()));
-
-        assertVsLive (restored.effects ().desiredControllerWorkspace ());
-    }
-
-
-    @Test
     void checkpointReplaysAnUnacknowledgedSessionDestinationView ()
     {
         final FakeCoreHost first = host (ClipCatalogSnapshot.empty ());
         first.start (Optional.empty ());
-        enterVsLive (first);
         first.controllerButton (SESSION_BUTTON, true);
 
         final PullCoreProvider provider = new PullCoreProvider ();
@@ -2489,7 +2403,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
 
         host.bridge (bridgeWithPressure (GridPressureConfiguration.CHANNEL, 36));
         host.controllerPad (PushControlIds.pad (1), true);
@@ -2852,11 +2765,10 @@ class PullControllerCoreTest
 
 
     @Test
-    void shiftSessionDrumControllerOwnsTheSameAutomaticRoll ()
+    void vsLiveDrumControllerOwnsTheSameAutomaticRoll ()
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
         final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
         final NoteViewSnapshot preference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, true);
         final NoteRepeatSnapshot manual = new NoteRepeatSnapshot (true, true, false, NoteRepeatMode.RANDOM, 2, 1.0 / 3.0, 0.25, true, true, false, false);
@@ -2874,7 +2786,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
         final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
         final NoteViewSnapshot preference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, true);
         final NoteRepeatSnapshot manual = new NoteRepeatSnapshot (true, true, false, NoteRepeatMode.RANDOM, 2, 1.0 / 3.0, 0.25, true, true, false, false);
@@ -2926,7 +2837,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
         final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
         final NoteViewSnapshot preference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, true);
         final NoteRepeatSnapshot manual = new NoteRepeatSnapshot (true, true, false, NoteRepeatMode.RANDOM, 2, 1.0 / 3.0, 0.25, true, true, false, false);
@@ -3007,7 +2917,6 @@ class PullControllerCoreTest
     {
         final FakeCoreHost host = host (ClipCatalogSnapshot.empty ());
         host.start (Optional.empty ());
-        enterVsLive (host);
         final SelectedTrackSnapshot drums = selectedTrack (9, "drums", 0, true, false);
         final NoteViewSnapshot preference = new NoteViewSnapshot (9, "drums", 0, ControllerNoteView.NONE, true);
         final NoteRepeatSnapshot manual = new NoteRepeatSnapshot (true, true, false, NoteRepeatMode.RANDOM, 2, 1.0 / 3.0, 0.25, true, true, false, false);
@@ -3654,7 +3563,7 @@ class PullControllerCoreTest
     private static void startFillCore (final FakeCoreHost host)
     {
         host.initialBridge (fillLayoutBridge (true));
-        host.start (Optional.empty ());
+        host.resumeOrdinaryWorkspace ();
     }
 
 
