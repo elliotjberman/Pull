@@ -192,6 +192,7 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
     {
         final ModelSetup ms = new ModelSetup ();
         ms.enableDrum64Device ();
+        ms.enableGroupDrumTarget ();
         ms.setNumFilterColumnEntries (48);
         ms.setNumResults (48);
         ms.setNumSends (8);
@@ -227,11 +228,12 @@ public class PushControllerSetup extends AbstractControllerSetup<PushControlSurf
         final IMidiOutput output = midiAccess.createOutput ();
 
         final IMidiInput input = midiAccess.createInput ("Pads", PAD_MIDI_FILTERS);
-        final ISelectedTrackNoteTarget selectedTrackNoteTarget = input.createSelectedTrackTarget ();
+        final ISelectedTrackNoteTarget selectedTrackNoteTarget = input.createSelectedTrackTarget (this.model);
         final PushControlSurface surface = new PushControlSurface (this.host, this.colorManager, this.configuration, output, input, selectedTrackNoteTarget, this.model.getCursorTrack (), () -> {
             final IDrumDevice drumDevice = this.model.getDrumDevice ();
             return drumDevice.doesExist () && drumDevice.hasDrumPads ();
         }, this.reloadableRuntime);
+        surface.setDrumModelIdentity (this.model::getDrumTrackId);
         this.surface = surface;
         surface.setSessionBankRegistry (this.sessionBankRegistry);
         this.reloadableRuntime.connect (this.model, selectedTrackNoteTarget, input::sendRawMidiEvent, surface, this.valueChanger);

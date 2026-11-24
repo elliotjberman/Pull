@@ -157,6 +157,8 @@ final class BoundedControllerBridge implements ControllerBridge
     private double sampledTransportPosition;
     private long sampledSelectedGeneration = -1;
     private long observedSelectedGeneration = -1;
+    private long observedNoteGeneration = -1;
+    private String observedNoteId = "";
     private long activeCoreGeneration;
     private Runnable inputLifecycleCleanup = () -> {
         // No debugger input is active unless the optional debugger installs one.
@@ -243,20 +245,27 @@ final class BoundedControllerBridge implements ControllerBridge
     public boolean refresh (final long monotonicTimeNanos, final DesiredBridgeSubscriptions subscriptions, final DesiredParameterBanks parameterBanks)
     {
         final DesiredBridgeSubscriptions requested = Objects.requireNonNull (subscriptions, "subscriptions");
+        if (this.selectedTarget.drumTargetChanging (requested.drumTarget ())) this.controllerState.targetChanging ();
+        this.selectedTarget.refreshDrumTarget (requested.drumTarget ());
         this.reconcileNoteRepeatLease ();
         this.controllerState.refresh ();
         final long selectedGeneration = this.selectedTarget.getGeneration ();
-        if (this.observedSelectedGeneration >= 0 && selectedGeneration != this.observedSelectedGeneration)
-        {
+        final boolean selectionChanged = this.observedSelectedGeneration >= 0 && selectedGeneration != this.observedSelectedGeneration;
+        final var musicalTarget = this.selectedTarget.noteTarget ();
+        final long noteGeneration = musicalTarget.getGeneration ();
+        final String noteId = musicalTarget.getChannelID ();
+        if (selectionChanged || this.observedNoteGeneration >= 0 && (noteGeneration != this.observedNoteGeneration || !noteId.equals (this.observedNoteId)))
             this.resetNoteInputMidiState ();
-            this.parameterTargets.releaseTouches ();
-        }
+        if (selectionChanged) this.parameterTargets.releaseTouches ();
         this.observedSelectedGeneration = selectedGeneration;
+        this.observedNoteGeneration = noteGeneration;
+        this.observedNoteId = noteId;
 
         final boolean selectedRequested = requested.includes (BridgeSubscription.SELECTED_TRACK);
         final boolean drumRequested = requested.includes (BridgeSubscription.DRUM_PADS);
         final boolean noteViewRequested = requested.includes (BridgeSubscription.NOTE_VIEW);
         final SelectedTrackNoteTargetSnapshot selectedState = selectedRequested || drumRequested || noteViewRequested ? this.selectedTarget.snapshot () : null;
+        final SelectedTrackNoteTargetSnapshot noteState = selectedState == null ? null : this.selectedTarget.noteTarget () == this.selectedTarget ? selectedState : this.selectedTarget.noteTarget ().snapshot ();
         final SelectedTrackSnapshot selected = selectedRequested ? toApiSnapshot (selectedState) : SelectedTrackSnapshot.empty ();
         final boolean sessionClipsRequested = requested.includes (BridgeSubscription.SESSION_CLIPS);
         final boolean sessionBankRequested = requested.includes (BridgeSubscription.SESSION_BANK) || sessionClipsRequested;
@@ -278,14 +287,14 @@ final class BoundedControllerBridge implements ControllerBridge
         }
 
         final ControllerLayoutSnapshot layout = requested.includes (BridgeSubscription.CONTROLLER_LAYOUT) ? this.captureLayout () : ControllerLayoutSnapshot.empty ();
-        final NoteViewSnapshot noteView = noteViewRequested ? this.captureNoteView (selectedState) : NoteViewSnapshot.empty ();
+        final NoteViewSnapshot noteView = noteViewRequested ? this.captureNoteView (noteState) : NoteViewSnapshot.empty ();
         final NoteRepeatSnapshot noteRepeat = requested.includes (BridgeSubscription.NOTE_REPEAT) ? this.captureNoteRepeat () : NoteRepeatSnapshot.empty ();
 
-        if (drumRequested && (selectedState.generation () != this.sampledSelectedGeneration || elapsedAtLeast (monotonicTimeNanos, this.lastDrumSampleNanos, DRUM_SAMPLE_NANOS)))
+        if (drumRequested && (noteState.generation () != this.sampledSelectedGeneration || elapsedAtLeast (monotonicTimeNanos, this.lastDrumSampleNanos, DRUM_SAMPLE_NANOS)))
         {
-            this.drumSnapshot = this.captureDrum (selectedState);
+            this.drumSnapshot = this.captureDrum (noteState);
             this.lastDrumSampleNanos = monotonicTimeNanos;
-            this.sampledSelectedGeneration = selectedState.generation ();
+            this.sampledSelectedGeneration = noteState.generation ();
         }
         else if (!drumRequested)
         {
@@ -736,8 +745,10 @@ final class BoundedControllerBridge implements ControllerBridge
         }
         if (effect instanceof final SetNoteViewPreferenceEffect preference)
         {
-            this.requireSelectedTarget (preference.targetGeneration (), preference.channelId ());
-            if (this.snapshot.selectedTrack ().position () != preference.trackPosition ())
+            final var target = toApiSnapshot (this.selectedTarget.noteTarget ().snapshot ());
+            if (!target.exists () || target.generation () != preference.targetGeneration () || !target.channelId ().equals (preference.channelId ()))
+                throw new IllegalArgumentException ("Note-view preference targets a stale musical owner");
+            if (target.position () != preference.trackPosition ())
                 throw new IllegalArgumentException ("Note-view preference targets a stale track position");
             return new PreparedNoteViewPreference (preference.targetGeneration (), preference.channelId (), preference.trackPosition (), preference.view ());
         }
@@ -883,8 +894,8 @@ final class BoundedControllerBridge implements ControllerBridge
         else if (action instanceof final PreparedDrumWindow window)
         {
             final SetDrumWindowPositionEffect effect = window.effect ();
-            if (!this.selectedTargetIsCurrent (window.targetGeneration (), effect.targetChannelId ()) ||
-                !this.model.getCursorTrack ().doesExist () || !effect.targetChannelId ().equals (this.model.getCursorTrack ().getChannelID ())) return;
+            if (!this.noteTargetIsCurrent (window.targetGeneration (), effect.targetChannelId ()) ||
+                !this.drumModelAligned () || !effect.targetChannelId ().equals (this.model.getDrumTrackId ())) return;
             final IDrumDevice device = this.model.getDrumDevices ().stream ().filter (item -> effect.deviceId ().equals (item.getID ())).findFirst ().orElse (null);
             if (device != null && device.doesExist () && device.hasDrumPads () && device.getDrumPadBank ().getScrollPosition () == window.previousBase ())
                 device.getDrumPadBank ().scrollTo (effect.baseMidiNote (), false);
@@ -989,12 +1000,12 @@ final class BoundedControllerBridge implements ControllerBridge
     private NoteViewSnapshot captureNoteView (final SelectedTrackNoteTargetSnapshot selected)
     {
         if (selected == null || !selected.exists () || selected.trackID ().isBlank ())
-            return NoteViewSnapshot.empty ();
+            return new NoteViewSnapshot (0, "", -1, ControllerNoteView.NONE, false, false, SelectedTrackSnapshot.empty (), this.selectedTarget.groupDrumScan ());
         final de.mossgrabers.framework.view.Views preferred = this.surface.getViewManager ().getPreferredView (selected.position ());
         final ControllerNoteView preferredView = preferred == null ? ControllerNoteView.NONE : ControllerNoteView.fromStableId (preferred.name ());
-        final boolean aligned = this.model.getCursorTrack ().doesExist () && selected.trackID ().equals (this.model.getCursorTrack ().getChannelID ());
+        final boolean aligned = this.drumModelAligned () && selected.trackID ().equals (this.model.getDrumTrackId ());
         return new NoteViewSnapshot (selected.generation (), selected.trackID (), selected.position (), preferredView,
-            this.surface.isDrumControllerApplicable (), aligned && this.model.isDrumDeviceSearchLimited ());
+            this.surface.isDrumControllerApplicable (), aligned && this.model.isDrumDeviceSearchLimited (), this.selectedTarget.noteTarget () == this.selectedTarget ? SelectedTrackSnapshot.empty () : toApiSnapshot (selected), this.selectedTarget.groupDrumScan ());
     }
 
 
@@ -1162,10 +1173,9 @@ final class BoundedControllerBridge implements ControllerBridge
     private DrumContextSnapshot captureDrum (final SelectedTrackNoteTargetSnapshot selected)
     {
         final String targetID = selected.trackID ();
-        final String modelTrackID = this.model.getCursorTrack ().getChannelID ();
-        final boolean aligned = selected.exists () && !targetID.isBlank () && this.model.getCursorTrack ().doesExist () && targetID.equals (modelTrackID);
+        final boolean aligned = selected.exists () && !targetID.isBlank () && this.drumModelAligned () && targetID.equals (this.model.getDrumTrackId ());
         final IDrumDevice drum = this.model.getDrumDevice ();
-        final boolean available = aligned && this.selectedTarget.hasDrumDevice () && drum.doesExist () && drum.hasDrumPads ();
+        final boolean available = aligned && this.selectedTarget.noteTarget ().hasDrumDevice () && drum.doesExist () && drum.hasDrumPads ();
         final boolean limited = aligned && this.model.isDrumDeviceSearchLimited ();
         if (!available)
         {
@@ -1199,7 +1209,7 @@ final class BoundedControllerBridge implements ControllerBridge
                 identity.append ('|').append (padChannelID);
                 pads.add (new DrumPadSnapshot (index, midiNote, padChannelID, pad.doesExist (), pad.getName (), toRgb (pad.getColor ()),
                     pad.isActivated (), pad.hasDevices (), pad.isSelected (), pad.isMute (), pad.isSolo (),
-                    this.valueChanger.toNormalizedValue (pad.getVolume ()), this.valueChanger.toNormalizedValue (pad.getPan ()), this.selectedTarget.getPlayingVelocity (midiNote)));
+                    this.valueChanger.toNormalizedValue (pad.getVolume ()), this.valueChanger.toNormalizedValue (pad.getPan ()), this.selectedTarget.noteTarget ().getPlayingVelocity (midiNote)));
             }
             machines.add (new DrumMachineSnapshot (machine.getID (), machineBase, pads));
         }
@@ -1244,6 +1254,18 @@ final class BoundedControllerBridge implements ControllerBridge
     }
 
 
+    private boolean noteTargetIsCurrent (long generation, String channelID)
+    {
+        final var target = this.selectedTarget.noteTarget ();
+        return target.doesExist () && target.getGeneration () == generation && channelID.equals (target.getChannelID ());
+    }
+
+    private boolean drumModelAligned ()
+    {
+        return this.model.getCursorTrack ().doesExist () && this.selectedTarget.getChannelID ().equals (this.model.getCursorTrack ().getChannelID ()) &&
+            this.model.isDrumTrackReady () && this.selectedTarget.isDrumModelAligned (this.model.getDrumTrackId ());
+    }
+
     private boolean selectedTargetIsCurrent (final long generation, final String channelID)
     {
         return this.selectedTarget.doesExist () && this.selectedTarget.getGeneration () == generation && channelID.equals (this.selectedTarget.getChannelID ());
@@ -1254,7 +1276,7 @@ final class BoundedControllerBridge implements ControllerBridge
     public boolean controllerMappingContextMatches (final ControllerMappingContext context)
     {
         return context.active () && this.controllerMappings != null &&
-            this.selectedTargetIsCurrent (context.targetGeneration (), context.channelId ()) &&
+            this.noteTargetIsCurrent (context.targetGeneration (), context.channelId ()) &&
             this.controllerMappings.storage ().matches (context);
     }
 
@@ -1262,7 +1284,7 @@ final class BoundedControllerBridge implements ControllerBridge
     private IDrumPad currentDrumPad (final long generation, final String targetID, final String deviceID, final int baseMidiNote, final int padIndex, final String padChannelID)
     {
         final DrumContextSnapshot drum = this.snapshot.drum ();
-        if (!this.selectedTargetIsCurrent (drum.targetGeneration (), targetID) || !this.model.getCursorTrack ().doesExist () || !targetID.equals (this.model.getCursorTrack ().getChannelID ()) || !drum.available () || drum.generation () != generation || !targetID.equals (drum.targetChannelId ()) || padIndex < 0 || padIndex >= drum.pads ().size ())
+        if (!this.noteTargetIsCurrent (drum.targetGeneration (), targetID) || !this.drumModelAligned () || !targetID.equals (this.model.getDrumTrackId ()) || !drum.available () || drum.generation () != generation || !targetID.equals (drum.targetChannelId ()) || padIndex < 0 || padIndex >= drum.pads ().size ())
             return null;
         final IDrumDevice device = this.model.getDrumDevice ();
         if (!device.doesExist () || !device.hasDrumPads () || !deviceID.equals (device.getID ()))
@@ -1349,8 +1371,8 @@ final class BoundedControllerBridge implements ControllerBridge
 
     private void applyNoteViewPreference (final PreparedNoteViewPreference request)
     {
-        final SelectedTrackNoteTargetSnapshot selected = this.selectedTarget.snapshot ();
-        if (!this.selectedTargetIsCurrent (request.generation (), request.channelID ()) || selected.position () != request.position ())
+        final SelectedTrackNoteTargetSnapshot selected = this.selectedTarget.noteTarget ().snapshot ();
+        if (!this.noteTargetIsCurrent (request.generation (), request.channelID ()) || selected.position () != request.position ())
             return;
         this.surface.getViewManager ().setPreferredView (request.position (), de.mossgrabers.framework.view.Views.valueOf (request.view ().name ()));
     }
@@ -1423,7 +1445,7 @@ final class BoundedControllerBridge implements ControllerBridge
     {
         final SetDrumBankPositionEffect effect = request.effect ();
         final String target = effect.targetChannelId ();
-        if (!this.selectedTargetIsCurrent (request.targetGeneration (), target) || !this.model.getCursorTrack ().doesExist () || !target.equals (this.model.getCursorTrack ().getChannelID ()))
+        if (!this.noteTargetIsCurrent (request.targetGeneration (), target) || !this.drumModelAligned () || !target.equals (this.model.getDrumTrackId ()))
             return;
         final IDrumDevice device = this.model.getDrumDevice ();
         if (!device.doesExist () || !device.hasDrumPads () || !request.deviceId ().equals (device.getID ()))

@@ -52,6 +52,36 @@ class ControllerStateHostTest
 
 
     @Test
+    void childRouteDetachesItsOriginalActuatorAndWaitsForHeldInput ()
+    {
+        final List<String> events = new ArrayList<> ();
+        final MutableTarget group = new MutableTarget (events);
+        final MutableTarget first = new MutableTarget (events);
+        final MutableTarget second = new MutableTarget (events);
+        first.channelID = "drums";
+        second.channelID = "samples";
+        group.musicalTarget = first;
+        final AtomicBoolean idle = new AtomicBoolean (true);
+        final ControllerStateHost host = new ControllerStateHost (group, new RecordingSurface (events), () -> events.add ("neutralize"));
+        host.setInputLifecycleIdle (idle::get);
+        host.apply (state (ControllerNoteView.DRUM_PAD, first.generation, "drums"));
+        assertTrue (first.routeActive);
+        assertFalse (group.routeActive);
+        idle.set (false);
+        group.musicalTarget = second;
+        host.refresh ();
+        assertFalse (first.routeActive, "detach uses the outgoing child, even after resolution changed");
+        assertFalse (second.routeActive);
+        host.apply (state (ControllerNoteView.DRUM_PAD, second.generation, "samples"));
+        assertFalse (second.routeActive, "held physical input cannot move to a new child");
+        idle.set (true);
+        host.refresh ();
+        assertTrue (second.routeActive);
+        assertFalse (group.routeActive);
+    }
+
+
+    @Test
     void selectedNoteRouteNeutralizationPreservesRoutedBrowserHolds () throws IOException
     {
         final RoutedCleanupFixture fixture = new RoutedCleanupFixture (this.debugDirectory);
@@ -555,6 +585,12 @@ class ControllerStateHostTest
     {
         private final List<String> events;
         private boolean routeActive;
+        private de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget musicalTarget;
+
+        @Override public de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget noteTarget ()
+        {
+            return this.musicalTarget == null ? this : this.musicalTarget;
+        }
 
 
         private MutableTarget (final List<String> events)

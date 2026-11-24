@@ -133,6 +133,15 @@ public class MidiInputImpl implements IMidiInput
     }
 
 
+    @Override
+    public ISelectedTrackNoteTarget createSelectedTrackTarget (de.mossgrabers.framework.daw.IModel model)
+    {
+        final SelectedTrackTargetState selected = (SelectedTrackTargetState) this.createSelectedTrackTarget ();
+        if (model instanceof de.mossgrabers.bitwig.framework.daw.ModelImpl nativeModel)
+            selected.initializeGroupTarget (nativeModel, this.selectedTrackTarget, this.defaultNoteInput);
+        return selected;
+    }
+
     static CursorTrack createSelectedTrackTargetCursor (final ControllerHost host)
     {
         return host.createCursorTrack (SELECTED_TRACK_CURSOR_ID, "Pull Pads Selected Track", 0, 0, true);

@@ -99,10 +99,12 @@ public final class NoteViewControllerView implements ControllerView
     {
         if (!LAYOUT_BUTTON.equals (input.controlId ()))
             throw new IllegalArgumentException ("Unsupported Note-layout action input " + input.controlId ());
+        if (snapshot.bridge ().selectedTrack ().group ())
+            return ResolvedControllerAction.of (binding.intent (), List::of);
         final ControllerNoteView active = ControllerNoteView.fromStableId (snapshot.bridge ().layout ().viewId ());
         final ControllerNoteView requested = snapshot.pressedControls ().contains (SHIFT_BUTTON) ? shiftedLayout (active) : nextLayout (active);
         final NoteViewSnapshot target = snapshot.bridge ().noteView ();
-        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
+        final SelectedTrackSnapshot selected = ResolvedNoteViewer.target (snapshot);
         if (!requested.isPresent () || !sameTarget (selected, target))
             return ResolvedControllerAction.of (binding.intent (), List::of);
         final CoreEffect effect = new SetNoteViewPreferenceEffect (target.targetGeneration (), target.targetChannelId (), target.trackPosition (), requested);

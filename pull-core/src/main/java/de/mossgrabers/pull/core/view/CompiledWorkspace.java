@@ -374,11 +374,19 @@ public final class CompiledWorkspace
         ControllerPadGridOverlay padGridOverlay = ControllerPadGridOverlay.inactive ();
         ControllerDisplayOverlay displayOverlay = ControllerDisplayOverlay.inactive ();
         DesiredClipScan clipScan = DesiredClipScan.inactive ();
+        var drumTarget = de.mossgrabers.pull.core.api.DesiredDrumTarget.inactive ();
         DesiredNotePerformance notePerformance = DesiredNotePerformance.inactive ();
         DesiredNoteRepeat noteRepeat = DesiredNoteRepeat.unowned ();
         DesiredTouchStrip touchStrip = DesiredTouchStrip.unowned ();
         for (final CompiledView view: this.views)
         {
+            final var requestedDrumTarget = view.view ().desiredDrumTarget ();
+            if (requestedDrumTarget.active ())
+            {
+                if (!view.bridgeSubscriptions ().contains (BridgeSubscription.NOTE_VIEW) || drumTarget.active ())
+                    throw new IllegalStateException ("Invalid or competing drum target owner");
+                drumTarget = requestedDrumTarget;
+            }
             final DesiredClipScan requestedScan = view.view ().desiredClipScan ();
             if (requestedScan.active ())
             {
@@ -475,7 +483,7 @@ public final class CompiledWorkspace
         return new CoreResult (
             new DesiredHardwareOutput (lights, display, padGridOverlay, displayOverlay, new DesiredControllerMappings (controllerMappingBindings), touchStrip, lightBlinks),
             this.desiredInputRoutes,
-            new DesiredBridgeSubscriptions (subscriptions, clipScan),
+            new DesiredBridgeSubscriptions (subscriptions, clipScan, drumTarget),
             clipBindings,
             new DesiredControllerState (this.desiredControllerWorkspace, notePerformance),
             noteRepeat,

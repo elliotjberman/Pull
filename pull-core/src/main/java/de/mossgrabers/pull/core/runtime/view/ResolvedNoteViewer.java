@@ -15,10 +15,25 @@ import java.util.Objects;
 /** One target-fenced note viewer and the controller mechanisms attached to it. */
 record ResolvedNoteViewer (ControllerNoteView layout, DesiredNoteInputRoute noteInputRoute, boolean automaticRollAttached)
 {
+    static SelectedTrackSnapshot target (ControllerSnapshot snapshot)
+    {
+        return target (snapshot.bridge ().selectedTrack (), snapshot.bridge ().noteView ());
+    }
+
+    /** The musical owner can be a child while mixer/transport selection stays on its group. */
+    static SelectedTrackSnapshot target (SelectedTrackSnapshot selected, NoteViewSnapshot note)
+    {
+        if (!selected.group ())
+            return note.resolvedTarget ().exists () && note.resolvedTarget ().channelId ().equals (selected.channelId ()) ? note.resolvedTarget () : selected;
+        return selected.exists () && selected.generation () == note.groupScan ().selectionGeneration () && selected.channelId ().equals (note.groupScan ().selectionId ()) &&
+            note.drumControllerApplicable () && note.groupScan ().hasDrums () && note.resolvedTarget ().exists () && note.resolvedTarget ().channelId ().equals (note.groupScan ().scannedTrackId ()) ?
+                note.resolvedTarget () : SelectedTrackSnapshot.empty ();
+    }
+
     /** Resolve the musical lease contributed by a composite lower-half Drum controller. */
     static ResolvedNoteViewer resolveCompositeDrum (final ControllerSnapshot snapshot)
     {
-        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
+        final SelectedTrackSnapshot selected = ResolvedNoteViewer.target (snapshot);
         final NoteViewSnapshot preference = snapshot.bridge ().noteView ();
         if (!selected.exists () || !sameTarget (selected, preference) || !selected.canHoldNotes () || !preference.drumControllerApplicable ())
             return new ResolvedNoteViewer (ControllerNoteView.NONE, DesiredNoteInputRoute.disabled (), false);
@@ -36,7 +51,7 @@ record ResolvedNoteViewer (ControllerNoteView layout, DesiredNoteInputRoute note
 
     static ResolvedNoteViewer resolve (final ControllerSnapshot snapshot, final boolean noteDestinationPending, final ControllerNoteView preferredView)
     {
-        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
+        final SelectedTrackSnapshot selected = ResolvedNoteViewer.target (snapshot);
         final NoteViewSnapshot preference = snapshot.bridge ().noteView ();
         if (!selected.exists () || !sameTarget (selected, preference))
             return new ResolvedNoteViewer (ControllerNoteView.NONE, DesiredNoteInputRoute.disabled (), false);
@@ -44,7 +59,7 @@ record ResolvedNoteViewer (ControllerNoteView layout, DesiredNoteInputRoute note
         final boolean alignedDrumTarget = preference.drumControllerApplicable ();
         final ControllerNoteView active = ControllerNoteView.fromStableId (snapshot.bridge ().layout ().viewId ());
         final boolean noteViewerVisible = noteDestinationPending || active.isPresent ();
-        final ControllerNoteView layout = noteViewerVisible ? resolveLayout (selected, Objects.requireNonNull (preferredView, "preferredView"), alignedDrumTarget) : ControllerNoteView.NONE;
+        final ControllerNoteView layout = noteViewerVisible ? resolveLayout (selected, snapshot.bridge ().selectedTrack ().group () ? ControllerNoteView.DRUM_PAD : Objects.requireNonNull (preferredView, "preferredView"), alignedDrumTarget) : ControllerNoteView.NONE;
         final DesiredNoteInputRoute noteInputRoute = layout.isPresent () && selected.canHoldNotes () ? DesiredNoteInputRoute.selectedTrack (selected.generation (), selected.channelId ()) : DesiredNoteInputRoute.disabled ();
         return new ResolvedNoteViewer (layout, noteInputRoute, automaticRollAttached (snapshot, preference, layout));
     }

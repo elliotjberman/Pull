@@ -15,9 +15,16 @@ import java.util.Objects;
  * @param preferredView Explicit stored preference, or {@link ControllerNoteView#NONE}
  * @param drumControllerApplicable Whether the bounded selected/model drum targets are aligned
  * @param drumSearchLimited Whether aligned drum discovery exhausted a structural or machine window
+ * @param resolvedTarget Observed musical child, or empty for ordinary selected-track operation
+ * @param groupScan Selected group child window and shared scanner read-back
  */
-public record NoteViewSnapshot (long targetGeneration, String targetChannelId, int trackPosition, ControllerNoteView preferredView, boolean drumControllerApplicable, boolean drumSearchLimited)
+public record NoteViewSnapshot (long targetGeneration, String targetChannelId, int trackPosition, ControllerNoteView preferredView, boolean drumControllerApplicable, boolean drumSearchLimited, SelectedTrackSnapshot resolvedTarget, GroupDrumScanSnapshot groupScan)
 {
+    public NoteViewSnapshot (long targetGeneration, String targetChannelId, int trackPosition, ControllerNoteView preferredView, boolean drumControllerApplicable, boolean drumSearchLimited)
+    {
+        this (targetGeneration, targetChannelId, trackPosition, preferredView, drumControllerApplicable, drumSearchLimited, SelectedTrackSnapshot.empty (), GroupDrumScanSnapshot.empty ());
+    }
+
     public NoteViewSnapshot (final long targetGeneration, final String targetChannelId, final int trackPosition, final ControllerNoteView preferredView, final boolean drumControllerApplicable)
     {
         this (targetGeneration, targetChannelId, trackPosition, preferredView, drumControllerApplicable, false);
@@ -34,6 +41,8 @@ public record NoteViewSnapshot (long targetGeneration, String targetChannelId, i
         targetChannelId = Objects.requireNonNull (targetChannelId, "targetChannelId");
         if (trackPosition < -1)
             throw new IllegalArgumentException ("trackPosition must be -1 or greater");
+        resolvedTarget = Objects.requireNonNull (resolvedTarget);
+        groupScan = Objects.requireNonNull (groupScan);
         preferredView = Objects.requireNonNull (preferredView, "preferredView");
     }
 

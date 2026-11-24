@@ -356,6 +356,8 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     private PushDebugSurfaceHost               debugSurfaceHost;
     private SessionBankRegistry                 sessionBankRegistry;
     private final ISelectedTrackNoteTarget    selectedTrackNoteTarget;
+    private java.util.function.Supplier<String> drumModelIdentity;
+    public void setDrumModelIdentity (java.util.function.Supplier<String> identity) { this.drumModelIdentity = identity; }
     private final ITrack                      drumModelTrack;
     private final BooleanSupplier             drumModelDeviceReady;
     private BooleanSupplier                   drumPadLayoutActive       = () -> false;
@@ -722,9 +724,9 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
     public boolean isDrumControllerTarget ()
     {
         return isDrumTargetCapable (
-            this.selectedTrackNoteTarget.doesExist (),
-            this.selectedTrackNoteTarget.canHoldNotes (),
-            this.selectedTrackNoteTarget.hasDrumDevice ());
+            this.selectedTrackNoteTarget.noteTarget ().doesExist (),
+            this.selectedTrackNoteTarget.noteTarget ().canHoldNotes (),
+            this.selectedTrackNoteTarget.noteTarget ().hasDrumDevice ());
     }
 
 
@@ -755,12 +757,9 @@ public class PushControlSurface extends AbstractControlSurface<PushConfiguration
 
     private boolean isDrumModelAligned ()
     {
-        return isDrumModelAligned (
-            this.drumModelTrack.doesExist (),
-            this.selectedTrackNoteTarget.getChannelID (),
-            this.drumModelTrack.getChannelID ());
+        return isDrumModelAligned (this.drumModelTrack.doesExist (), this.selectedTrackNoteTarget.getChannelID (), this.drumModelTrack.getChannelID ()) &&
+            this.selectedTrackNoteTarget.isDrumModelAligned (this.drumModelIdentity == null ? this.drumModelTrack.getChannelID () : this.drumModelIdentity.get ());
     }
-
 
     /**
      * Test whether the drum layout both owns its controls and has a compatible target.

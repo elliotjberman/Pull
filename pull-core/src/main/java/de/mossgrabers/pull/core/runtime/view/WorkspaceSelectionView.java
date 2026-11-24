@@ -175,7 +175,7 @@ public final class WorkspaceSelectionView implements ControllerView
         if (!(event instanceof final ControllerInputEvent input) || input.kind () != InputKind.BUTTON)
         {
             final NoteViewSnapshot note = snapshot.bridge ().noteView ();
-            final var selected = snapshot.bridge ().selectedTrack ();
+            final var selected = ResolvedNoteViewer.target (snapshot);
             final String target = note.targetGeneration () + ":" + note.targetChannelId ();
             if (!note.drumSearchLimited ()) this.warnedDrumSearchTarget = "";
             else if (selected.exists () && selected.canHoldNotes () && selected.generation () == note.targetGeneration () &&
