@@ -22,7 +22,7 @@ class BrowserPageCoreIntegrationTest
         host.controllerTick ();
         assertEquals ("BROWSER", page (host));
         host.bridge (bridge (2, false, 100));
-        assertEquals ("TRACK", page (host));
+        assertEquals ("WORKSPACE", page (host));
     }
 
     @Test
@@ -38,17 +38,17 @@ class BrowserPageCoreIntegrationTest
         assertEquals (Map.of (TARGET, 100.0), host.effects ().desiredParameterInteraction ().baselines ());
         host.bridge (bridge (2, true, 40));
         assertEquals (1, host.effects ().desiredParameterInteraction ().pendingActionCount ());
-        assertEquals ("TRACK", page (host));
+        assertEquals ("WORKSPACE", page (host));
         host.controllerTick ();
         host.controllerTick ();
         host.bridge (bridge (3, false, 40));
-        assertEquals ("TRACK", page (host));
+        assertEquals ("WORKSPACE", page (host));
         // Only later authoritative parameter read-back releases the old Browser open action.
         host.bridge (bridge (3, false, 100));
         host.controllerTick ();
         host.controllerTick ();
         assertEquals (0, host.effects ().desiredParameterInteraction ().pendingActionCount ());
-        assertEquals ("TRACK", page (host));
+        assertEquals ("WORKSPACE", page (host));
         assertTrue (host.effects ().desiredControllerPage ().temporary ().isEmpty ());
     }
 
@@ -67,7 +67,7 @@ class BrowserPageCoreIntegrationTest
         after.controllerTick ();
         assertEquals (token, after.effects ().desiredControllerPage ().temporaryToken ());
         after.bridge (bridge (3, false, 100));
-        assertEquals ("TRACK", page (after));
+        assertEquals ("WORKSPACE", page (after));
     }
 
     private static FakeCoreHost host () { final var provider = new PullCoreProvider (); return new FakeCoreHost (provider.create (), provider.descriptor ().requiredCapabilities ()); }

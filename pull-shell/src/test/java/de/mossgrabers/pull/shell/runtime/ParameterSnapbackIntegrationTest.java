@@ -3,6 +3,7 @@
 
 package de.mossgrabers.pull.shell.runtime;
 
+import de.mossgrabers.controller.ableton.push.mode.CorePageMode;
 import de.mossgrabers.framework.controller.ContinuousID;
 import de.mossgrabers.framework.controller.hardware.IHwContinuousControl;
 import de.mossgrabers.pull.core.api.BridgeSubscription;
@@ -19,6 +20,8 @@ import de.mossgrabers.pull.core.api.ControllerStateScope;
 import de.mossgrabers.pull.core.api.DesiredBridgeSubscriptions;
 import de.mossgrabers.pull.core.api.DesiredControllerWorkspace;
 import de.mossgrabers.pull.core.api.DesiredParameterInteraction;
+import de.mossgrabers.pull.core.api.ControllerPageRef;
+import de.mossgrabers.pull.core.api.DesiredControllerPageState;
 import de.mossgrabers.pull.core.api.DesiredParameterBanks;
 import de.mossgrabers.pull.core.api.InputRouteMode;
 import de.mossgrabers.pull.core.api.ParameterBridgeSnapshot;
@@ -64,7 +67,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class ParameterSnapbackIntegrationTest
 {
     private static final ControlId SHIFT = PushControlIds.button ("SHIFT");
-    private static final ControlId PAGE_RIGHT = PushControlIds.button ("PAGE_RIGHT");
+    private static final ControlId SETUP = PushControlIds.button ("SETUP");
+    private static final ControlId DEVICE = PushControlIds.button ("DEVICE");
 
 
     @org.junit.jupiter.api.io.TempDir
@@ -106,10 +110,14 @@ class ParameterSnapbackIntegrationTest
         final Path coreJar = createCoreJar (temporaryDirectory.resolve ("pull-core.jar"));
         final var activated = manager.activate ("unpublished", new CoreJarLoader ().load (coreJar), () -> true);
         assertEquals (ActivationResult.State.ACTIVE, activated.state (), activated.message ());
-        assertEquals (DesiredParameterBanks.empty (), bridge.lastAppliedBanks);
         final ReloadableControllerRuntime runtime = new ReloadableControllerRuntime (environment, NoOpLog.INSTANCE, event -> manager.handle (manager.activeGeneration (), event));
         runtime.start ();
 
+        // Start the return on a page that has no parameter subscriptions of its own.
+        route (inputs, SETUP, InputPhase.BEGIN, () -> {});
+        route (inputs, SETUP, InputPhase.END, () -> {});
+        runtime.tick ();
+        assertEquals (DesiredParameterBanks.empty (), bridge.lastAppliedBanks);
         route (inputs, SHIFT, InputPhase.BEGIN, () -> {
             // Shift's stable observer remains active during migration.
         });
@@ -130,8 +138,8 @@ class ParameterSnapbackIntegrationTest
         runtime.tick ();
 
         final AtomicInteger stableNavigation = new AtomicInteger ();
-        route (inputs, PAGE_RIGHT, InputPhase.BEGIN, stableNavigation::incrementAndGet);
-        route (inputs, PAGE_RIGHT, InputPhase.END, () -> {
+        route (inputs, DEVICE, InputPhase.BEGIN, stableNavigation::incrementAndGet);
+        route (inputs, DEVICE, InputPhase.END, () -> {
             // Stable button release has no navigation side effect.
         });
         assertEquals (0, stableNavigation.get ());
@@ -268,9 +276,10 @@ class ParameterSnapbackIntegrationTest
 
     private static PhysicalInputRouter<ControlId> inputRouter (final ControllerRuntimeEnvironment environment, final RuntimeManager manager)
     {
-        final PhysicalControlRegistry<ControlId> registry = PhysicalControlRegistry.<ControlId>builder (2)
+        final PhysicalControlRegistry<ControlId> registry = PhysicalControlRegistry.<ControlId>builder (3)
             .register (SHIFT, InputKind.BUTTON)
-            .register (PAGE_RIGHT, InputKind.BUTTON)
+            .register (SETUP, InputKind.BUTTON)
+            .register (DEVICE, InputKind.BUTTON)
             .build ();
         return new PhysicalInputRouter<> (
             registry,
@@ -301,7 +310,7 @@ class ParameterSnapbackIntegrationTest
 
     private static void route (final PhysicalInputRouter<ControlId> inputs, final ControlId control, final InputPhase phase, final Runnable stableCommand)
     {
-        final ControllerActionIntent stableAction = PAGE_RIGHT.equals (control) && phase == InputPhase.BEGIN ? new ControllerActionIntent (ControllerActionId.SELECT_PARAMETER_PAGE, Set.of (ControllerStateScope.ACTIVE_PARAMETERS)) : null;
+        final ControllerActionIntent stableAction = DEVICE.equals (control) && phase == InputPhase.BEGIN ? new ControllerActionIntent (ControllerActionId.SWITCH_PARAMETER_CONTEXT, Set.of (ControllerStateScope.ACTIVE_PARAMETERS)) : null;
         inputs.route (control, InputKind.BUTTON, phase, phase == InputPhase.END ? 0 : 127, stableAction, stableCommand);
     }
 
@@ -347,7 +356,7 @@ class ParameterSnapbackIntegrationTest
         private ControllerBridgeSnapshot snapshot = new ControllerBridgeSnapshot (
             de.mossgrabers.pull.core.api.TransportSnapshot.empty (), de.mossgrabers.pull.core.api.SelectedTrackSnapshot.empty (),
             // The permanent Tempo binding exercises legacy ingress, exact restoration and reload.
-            new de.mossgrabers.pull.core.api.ControllerLayoutSnapshot (1, "PLAY", "CLIP", false, false, 0, de.mossgrabers.pull.core.api.GridPressureConfiguration.OFF),
+            new de.mossgrabers.pull.core.api.ControllerLayoutSnapshot (1, "WORKSPACE", "WORKSPACE", false, false, 0, de.mossgrabers.pull.core.api.GridPressureConfiguration.OFF),
             de.mossgrabers.pull.core.api.DrumContextSnapshot.empty (), ParameterBridgeSnapshot.empty ());
         private Map<ParameterTargetRef, ParameterLease> retained = Map.of ();
         private DesiredParameterBanks lastAppliedBanks = DesiredParameterBanks.empty ();
@@ -446,6 +455,13 @@ class ParameterSnapbackIntegrationTest
         public boolean retainsParameterTarget (final ParameterTargetRef target)
         {
             return this.retained.containsKey (target);
+        }
+
+
+        @Override
+        public boolean supportsPageInput (final DesiredControllerPageState page, final ControlId control, final de.mossgrabers.pull.core.api.event.InputKind kind)
+        {
+            return page.effectivePage ().kind () == ControllerPageRef.Kind.CORE && CorePageMode.containsInput (control, kind);
         }
 
 

@@ -147,7 +147,7 @@ class PullCoreProviderTest
         assertEquals (provider.descriptor ().stateSchemaVersion (), checkpoint.version ());
         assertTrue (checkpoint.payload ().length < 8192);
         final ControllerCore restored = provider.create ();
-        assertEquals ("track", restored.start (snapshot, Optional.of (checkpoint)).desiredControllerState ().page ().selected ().id ());
+        assertEquals ("project-macros", restored.start (snapshot, Optional.of (checkpoint)).desiredControllerState ().page ().selected ().id ());
         assertArrayEquals (checkpoint.payload (), restored.checkpoint ().payload ());
 
     }
