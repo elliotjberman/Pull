@@ -182,7 +182,7 @@ public final class DrumOctaveView implements ControllerView
 
     private static boolean enabled (final ControllerSnapshot snapshot)
     {
-        final SelectedTrackSnapshot selected = snapshot.bridge ().selectedTrack ();
+        final SelectedTrackSnapshot selected = ResolvedNoteViewer.target (snapshot);
         final NoteViewSnapshot note = snapshot.bridge ().noteView ();
         final DrumContextSnapshot drum = snapshot.bridge ().drum ();
         return snapshot.bridge ().layout ().drumLayoutActive () && snapshot.bridge ().layout ().drumControllerEngaged () &&

@@ -18,6 +18,7 @@ import de.mossgrabers.pull.shell.SelectionDebug;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongSupplier;
+import java.util.function.BooleanSupplier;
 
 /**
  * Initialization-owned access to a track's layer tree. Each chain is visited through its parent,
@@ -41,6 +42,7 @@ public final class DrumDeviceTree
 
     private final CursorTrack track;
     private final LongSupplier nanoTime;
+    private final BooleanSupplier scope;
     private final Chain root;
     private final List<Slot> containers = new ArrayList<> ();
     private final List<Slot> machines = new ArrayList<> ();
@@ -61,6 +63,12 @@ public final class DrumDeviceTree
 
     DrumDeviceTree (final CursorTrack track, final String id, final LongSupplier nanoTime)
     {
+        this (track, id, nanoTime, () -> true);
+    }
+
+    DrumDeviceTree (final CursorTrack track, final String id, final LongSupplier nanoTime, final BooleanSupplier scope)
+    {
+        this.scope = scope;
         this.track = track;
         this.nanoTime = nanoTime;
         this.diagnosticId = id;
@@ -73,10 +81,7 @@ public final class DrumDeviceTree
         {
             slot.equalRoot = this.observeEquality (slot.chain, this.root.identity);
             for (final Slot parent : this.containers)
-            {
-                slot.equalParents.add (this.observeEquality (slot.referenceParent, parent.device));
                 slot.equalFxChains.add (this.observeEquality (slot.chain, parent.fx.identity));
-            }
         }
         track.channelId ().markInterested ();
         track.exists ().markInterested ();
@@ -96,10 +101,27 @@ public final class DrumDeviceTree
     public List<Slot> slotsForDrums () { return List.copyOf (this.machines); }
 
     /** Current distinct machines in tree order. Unacknowledged bindings are never exposed. */
-    public List<Slot> machines () { this.refresh (); this.recordDiagnostics (); return this.result; }
+    public List<Slot> machines () { if (!this.scope.getAsBoolean ()) return List.of (); this.refresh (); this.recordDiagnostics (); return this.result; }
 
     /** A structural window or the eight-machine capacity was exceeded. */
-    public boolean limited () { this.refresh (); return this.limited; }
+    public boolean limited () { if (!this.scope.getAsBoolean ()) return false; this.refresh (); return this.limited; }
+
+    /** Retire an evicted/project-local entry before its root track is reassigned. */
+    void invalidate ()
+    {
+        for (final Slot slot : this.slots ()) slot.release ();
+        this.result = List.of ();
+        this.trackId = "";
+        this.dirty = true;
+        this.limited = false;
+    }
+
+    /** Leaving a cached track must not leave half-acquired FOLLOW_SELECTION cursors behind. */
+    void suspendPendingAcquisitions ()
+    {
+        for (final Slot slot : this.slots ())
+            if (!slot.ready) slot.release ();
+    }
 
     private List<Slot> slots ()
     {
@@ -110,7 +132,7 @@ public final class DrumDeviceTree
 
     private void refresh ()
     {
-        if (this.refreshing || !this.dirty) return;
+        if (!this.scope.getAsBoolean () || this.refreshing || !this.dirty) return;
         this.refreshing = true;
         try
         {
@@ -279,7 +301,6 @@ public final class DrumDeviceTree
         private final DeviceLayerBank referenceLayers;
         private final DeviceLayer referenceLayer;
         private final BooleanValue equalLayerChain;
-        private final List<BooleanValue> equalParents = new ArrayList<> ();
         private final List<BooleanValue> equalFxChains = new ArrayList<> ();
         private BooleanValue equalRoot;
         private Slot requestedParent;
@@ -359,11 +380,12 @@ public final class DrumDeviceTree
         public Device device () { return this.device; }
         public boolean available ()
         {
+            if (!DrumDeviceTree.this.scope.getAsBoolean ()) return false;
             DrumDeviceTree.this.refresh ();
             return this.ready && this.source != null && this.sourceRevision == this.source.revision &&
                 this.device.exists ().get () && this.device.isPinned ().get () && this.sameTarget (this.source);
         }
-        public String identity () { return this.available () ? DrumDeviceTree.this.trackId + "/drum/" + this.assignment : ""; }
+        public String identity () { return this.available () ? DrumDeviceTree.this.trackId + "/drum/" + DrumDeviceTree.this.diagnosticId + "/" + this.assignment : ""; }
 
         private boolean bind (final Node node)
         {
@@ -440,7 +462,7 @@ public final class DrumDeviceTree
                 this.parentAcquisition = Acquisition.PINNING;
                 return false;
             }
-            if (!this.referenceParent.isPinned ().get () || !this.equalParents.get (DrumDeviceTree.this.containers.indexOf (parent)).get ())
+            if (!this.referenceParent.isPinned ().get ())
             {
                 if (now - this.parentDeadline >= 0) this.requestedParent = null;
                 return false;
@@ -481,7 +503,9 @@ public final class DrumDeviceTree
             if (node.chain.layerId == null) return this.equalFxChains.get (parent).get ();
             // A changed window UUID cannot re-label the retained device using an older equality.
             if (!this.layerHint.isBlank () && !sameLayerId (this.layerHint, node.chain.layerId.get ())) return false;
-            return this.referenceParent.isPinned ().get () && this.equalParents.get (parent).get () &&
+            // A layer's channel UUID is already globally unique. Matching the reference layer
+            // identifies its chain without registering each reference parent against every container.
+            return this.referenceParent.isPinned ().get () &&
                 sameLayerId (node.chain.layerId.get (), this.referenceLayer.channelId ().get ()) && this.equalLayerChain.get ();
         }
 
@@ -492,8 +516,10 @@ public final class DrumDeviceTree
 
         private void release ()
         {
-            if (!this.device.isPinned ().get ()) this.device.isPinned ().set (true);
-            if (!this.referenceParent.isPinned ().get ()) this.referenceParent.isPinned ().set (true);
+            if (this.acquisition == Acquisition.UNPINNING || !this.device.isPinned ().get ()) this.device.isPinned ().set (true);
+            if (this.parentAcquisition == Acquisition.UNPINNING || !this.referenceParent.isPinned ().get ()) this.referenceParent.isPinned ().set (true);
+            this.acquisition = null;
+            this.parentAcquisition = null;
             if (this.source != null) DrumDeviceTree.this.dirty = true;
             this.source = null;
             this.ready = false;

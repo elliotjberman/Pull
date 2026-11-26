@@ -1171,6 +1171,37 @@ class BoundedControllerBridgeTest
 
 
     @Test
+    void changingMusicalChildNeutralizesMidiWithoutReleasingGroupVolumeTouch ()
+    {
+        final var window = new MutableMixWindow ();
+        final var fixture = new BridgeFixture (true, window);
+        fixture.selected.switchTo (1, "a-0");
+        final var banks = new DesiredParameterBanks (Set.of (ParameterBankId.TRACK_VOLUME));
+        final var subscriptions = subscriptions (BridgeSubscription.PARAMETERS);
+        fixture.bridge.refresh (1, subscriptions, banks);
+        window.advanceAssignments ();
+        fixture.bridge.refresh (2, subscriptions, banks);
+        final var volume = fixture.bridge.snapshot ().parameters ().slots ().get (ParameterSlot.trackVolume (0)).target ();
+        final var desired = new de.mossgrabers.pull.core.api.DesiredParameterTouches (Map.of (PushControlIds.continuous ("KNOB1"), volume));
+        final var touches = fixture.bridge.prepareParameterTouches (desired, banks);
+        fixture.bridge.acquireParameterTouches (touches);
+        assertEquals (List.of (true), window.touchRequests);
+        applyMidi (fixture, 0xB1, 74, 99);
+
+        final var child = new MutableSelectedTarget ();
+        child.switchTo (2, "drums");
+        fixture.selected.musicalTarget = child;
+        fixture.bridge.refresh (3, subscriptions, banks);
+        assertEquals (List.of (true), window.touchRequests, "child acquisition leaves the selected group's parameter touch intact");
+        assertEquals (List.of (new MidiMessage (0xB1, 74, 99), new MidiMessage (0xB1, 74, 0)), fixture.noteInputMidiMessages);
+
+        fixture.selected.switchTo (2, "other-group");
+        fixture.bridge.refresh (4, subscriptions, banks);
+        assertEquals (List.of (true, false), window.touchRequests, "actual selection changes still release parameter touches");
+    }
+
+
+    @Test
     void neutralizesEveryStatefulMidiFamilyOnCoreHandoff ()
     {
         final BridgeFixture fixture = new BridgeFixture ();
@@ -1573,6 +1604,8 @@ class BoundedControllerBridgeTest
                 case "getHost" -> host;
                 case "getTransport" -> transportProxy;
                 case "getCursorTrack" -> cursorTrack;
+                case "getDrumTrackId" -> cursorTrack.getChannelID ();
+                case "isDrumTrackReady" -> cursorTrack.doesExist ();
                 case "getDrumDevices" -> java.util.stream.Stream.concat (java.util.stream.Stream.of (drumDevice), this.additionalDrums.stream ()).toList ();
                 case "isDrumDeviceSearchLimited" -> this.drumSearchLimited;
                 case "getDrumDevice" -> arguments == null || arguments.length == 0 ? drumDevice : legacyDrumDevice;
@@ -1670,6 +1703,7 @@ class BoundedControllerBridgeTest
     private static final class MutableMixWindow implements RetainedTrackParameters
     {
         private String prefix = "a";
+        private final List<Boolean> touchRequests = new ArrayList<> ();
         private final ITrackBank bank;
         private final Map<String, TrackMix> acquired = new java.util.HashMap<> ();
         private Set<String> requested = Set.of ();
@@ -1687,6 +1721,7 @@ class BoundedControllerBridgeTest
                     case "getName" -> "Volume";
                     case "getValue", "getModulatedValue" -> 64;
                     case "getDisplayedValue" -> "-6.0 dB";
+                    case "touchValue" -> { this.touchRequests.add ((Boolean) args[0]); yield null; }
                     default -> relaxedValue (method.getReturnType ());
                 });
                 tracks.add (proxy (ITrack.class, (proxy, method, args) -> switch (method.getName ())
@@ -1911,6 +1946,8 @@ class BoundedControllerBridgeTest
 
     private static final class MutableSelectedTarget extends SelectedTrackNoteTargetAdapter
     {
+        private ISelectedTrackNoteTarget musicalTarget;
+        @Override public ISelectedTrackNoteTarget noteTarget () { return this.musicalTarget == null ? this : this.musicalTarget; }
         private boolean armed;
         private boolean noteInputRouteActive;
         private int snapshotCount;

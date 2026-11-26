@@ -19,6 +19,32 @@ import static org.junit.jupiter.api.Assertions.*;
 class RetainedCursorHostTest
 {
     @Test
+    void acquiringAndReusingAnOffscreenTrackPreservesEditorSelection ()
+    {
+        final FakeHost host = new FakeHost (2);
+        final RetainedCursorHost retained = host.service ();
+        retained.tick ();
+        retained.requestTracks (Set.of ("track-0"));
+        assertEquals (0, host.assignments, "pin submission is not pin read-back");
+        host.applyIdentities ();
+        retained.tick ();
+        host.applyIdentities ();
+        host.applyParameters ();
+        retained.tick ();
+        retained.tick ();
+        assertNotNull (retained.lookup ("track-0"));
+        assertEquals ("editor-track", host.editorSelection);
+        retained.requestTracks (Set.of ());
+        retained.requestTracks (Set.of ("track-1"));
+        host.applyIdentities ();
+        host.applyParameters ();
+        retained.tick ();
+        retained.tick ();
+        assertNotNull (retained.lookup ("track-1"));
+        assertEquals ("editor-track", host.editorSelection);
+    }
+
+    @Test
     void uuidAloneCannotPublishPreviousTargetsMixAndSubmissionCannotAcknowledgeAWrite ()
     {
         final FakeHost host = new FakeHost (2);
@@ -26,6 +52,8 @@ class RetainedCursorHostTest
         retained.tick ();
         retained.requestTracks (Set.of ("track-0"));
         assertNull (retained.lookup ("track-0"));
+        host.applyIdentities ();
+        retained.tick ();
         host.applyIdentities ();
         retained.tick ();
         retained.tick ();
@@ -57,6 +85,8 @@ class RetainedCursorHostTest
         retained.tick ();
         retained.requestTracks (Set.of ("track-0"));
         host.applyIdentities ();
+        retained.tick ();
+        host.applyIdentities ();
         host.applyParameters ();
         retained.tick ();
         retained.tick ();
@@ -72,6 +102,8 @@ class RetainedCursorHostTest
         assertFalse (original.addressable ().getAsBoolean (), "retarget must fail at actual effect boundary");
         retained.requestTracks (Set.of ());
         retained.requestTracks (Set.of ("track-1"));
+        host.applyIdentities ();
+        retained.tick ();
         host.applyIdentities ();
         host.applyParameters ();
         retained.tick ();
@@ -90,6 +122,8 @@ class RetainedCursorHostTest
         final RetainedCursorHost retained = host.service ();
         retained.tick ();
         retained.requestTracks (Set.of ("track-0"));
+        host.applyIdentities ();
+        retained.tick ();
         host.applyIdentities ();
         host.applyParameters ();
         retained.tick ();
@@ -160,6 +194,8 @@ class RetainedCursorHostTest
         private final List<com.bitwig.extension.callback.IntegerValueChangedCallback> sendCountObservers = new ArrayList<> ();
         private final List<Runnable> pendingWrites = new ArrayList<> ();
         private String project = "project";
+        private String editorSelection = "editor-track";
+        private String pendingEditorSelection;
         private boolean flat;
         private int assignments;
         private int discoveryReads;
@@ -213,6 +249,11 @@ class RetainedCursorHostTest
 
         private void applyIdentities ()
         {
+            if (this.pendingEditorSelection != null)
+            {
+                this.editorSelection = this.pendingEditorSelection;
+                this.pendingEditorSelection = null;
+            }
             for (final CursorNode cursor: this.cursors)
             {
                 if (cursor.target != null)
@@ -263,6 +304,7 @@ class RetainedCursorHostTest
                 });
                 case "selectChannel" -> {
                     final String id = ((Track) args[0]).channelId ().get ();
+                    if (!this.requestedPin) host.pendingEditorSelection = id;
                     this.target = host.tracks.stream ().filter (track -> track.id.equals (id)).findFirst ().orElseThrow ();
                     host.assignments++;
                     yield null;

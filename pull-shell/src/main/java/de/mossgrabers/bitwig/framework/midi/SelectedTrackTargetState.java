@@ -19,7 +19,7 @@ import com.bitwig.extension.controller.api.SettableRangedValue;
 import com.bitwig.extension.controller.api.SoloValue;
 import com.bitwig.extension.controller.api.StringValue;
 
-import de.mossgrabers.bitwig.framework.daw.DrumDeviceTree;
+import de.mossgrabers.bitwig.framework.daw.DrumDeviceCache;
 import de.mossgrabers.framework.daw.midi.ISelectedTrackNoteTarget;
 import de.mossgrabers.framework.daw.midi.SelectedTrackMonitorMode;
 import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
@@ -28,13 +28,12 @@ import de.mossgrabers.framework.daw.midi.SelectedTrackNoteTargetSnapshot;
 /**
  * Authoritative capability state for the privately owned selected-track observer.
  *
- * <p>The private cursor owns a bounded drum-device tree and the stable actuator for a direct
- * Push Pads note route. Pull never exposes or pins its track or device cursor.</p>
+ * <p>The primary cursor follows selection and selects an entry in the shared drum cache.
+ * A group resolver supplies a pinned child backed by the model's cache entry. Each target owns
+ * its native Push Pads note-route actuator; neither track cursor is exposed to the user.</p>
  */
 final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
 {
-    static final String DRUM_DEVICE_CURSOR_ID   = "PULL_PADS_DRUM_DEVICE";
-
     private final de.mossgrabers.bitwig.framework.daw.HostImpl frameworkHost;
     private final CursorTrack target;
     private final StringValue targetID;
@@ -58,8 +57,31 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     private final SettableRangedValue targetPan;
     private final PlayingNoteArrayValue targetPlayingNotes;
     private final NoteInputImpl noteInput;
-    private final DrumDeviceTree drumTree;
+    private final DrumDeviceCache.View drumTree;
     private final int [] playingVelocities = new int [128];
+
+    private GroupDrumTarget groupTarget;
+    private java.util.function.BooleanSupplier valid = () -> true;
+    private java.util.function.LongSupplier scope = () -> 0;
+    private long identityScope;
+    private java.util.function.BooleanSupplier drums;
+
+    void initializeGroupTarget (de.mossgrabers.bitwig.framework.daw.ModelImpl model, CursorTrack selection, NoteInputImpl input)
+    {
+        this.groupTarget = new GroupDrumTarget (this.frameworkHost, this, selection, model, model.getDrumRoot (), input);
+    }
+    void fence (java.util.function.BooleanSupplier valid, java.util.function.LongSupplier scope, java.util.function.BooleanSupplier drums)
+    {
+        this.valid = valid; this.scope = scope; this.drums = drums;
+    }
+    @Override public ISelectedTrackNoteTarget noteTarget () { return this.groupTarget == null ? this : this.groupTarget.target (); }
+    @Override public de.mossgrabers.pull.core.api.GroupDrumScanSnapshot groupDrumScan () { return this.groupTarget == null ? ISelectedTrackNoteTarget.super.groupDrumScan () : this.groupTarget.snapshot (); }
+    @Override public void refreshDrumTarget (de.mossgrabers.pull.core.api.DesiredDrumTarget request) { if (this.groupTarget != null) this.groupTarget.refresh (request); }
+    @Override public boolean drumTargetChanging (de.mossgrabers.pull.core.api.DesiredDrumTarget request) { return this.groupTarget != null && this.groupTarget.changing (request); }
+    @Override public boolean isDrumModelAligned (String modelId)
+    {
+        return this.groupTarget != null && this.groupTarget.active () ? this.groupTarget.valid () && this.noteTarget ().getChannelID ().equals (modelId) : ISelectedTrackNoteTarget.super.isDrumModelAligned (modelId);
+    }
 
     private boolean identityInitialized;
     private String identityTrackID = "";
@@ -76,6 +98,11 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
      * @param noteInput The permanent controller note input
      */
     SelectedTrackTargetState (final de.mossgrabers.bitwig.framework.daw.HostImpl frameworkHost, final CursorTrack target, final NoteInputImpl noteInput)
+    {
+        this (frameworkHost, target, noteInput, true);
+    }
+
+    SelectedTrackTargetState (final de.mossgrabers.bitwig.framework.daw.HostImpl frameworkHost, final CursorTrack target, final NoteInputImpl noteInput, boolean observeDrums)
     {
         this.frameworkHost = Objects.requireNonNull (frameworkHost, "frameworkHost");
         final CursorTrack checkedTarget = Objects.requireNonNull (target, "target");
@@ -103,7 +130,7 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
         this.targetPan = checkedTarget.pan ().value ();
         this.targetPlayingNotes = checkedTarget.playingNotes ();
 
-        this.drumTree = new DrumDeviceTree (checkedTarget, DRUM_DEVICE_CURSOR_ID);
+        this.drumTree = observeDrums ? frameworkHost.getDrumDeviceCache ().follow (checkedTarget) : null;
 
         this.targetID.markInterested ();
         this.targetExists.markInterested ();
@@ -201,7 +228,7 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
     @Override
     public boolean hasDrumDevice ()
     {
-        return !this.drumTree.machines ().isEmpty ();
+        return this.valid.getAsBoolean () && (this.drums != null ? this.drums.getAsBoolean () : this.drumTree != null && !this.drumTree.machines ().isEmpty ());
     }
 
 
@@ -321,18 +348,19 @@ final class SelectedTrackTargetState implements ISelectedTrackNoteTarget
 
     private String readTrackID ()
     {
-        return valueOrEmpty (this.targetID.get ());
+        return this.valid.getAsBoolean () ? valueOrEmpty (this.targetID.get ()) : "";
     }
 
 
     private long refreshIdentity (final String trackID, final boolean exists)
     {
-        if (!this.identityInitialized || exists != this.identityExists || !trackID.equals (this.identityTrackID))
+        if (!this.identityInitialized || exists != this.identityExists || !trackID.equals (this.identityTrackID) || this.identityScope != this.scope.getAsLong ())
         {
             this.generation = Math.incrementExact (this.generation);
             this.identityTrackID = trackID;
             this.identityExists = exists;
             this.identityInitialized = true;
+            this.identityScope = this.scope.getAsLong ();
         }
         return this.generation;
     }

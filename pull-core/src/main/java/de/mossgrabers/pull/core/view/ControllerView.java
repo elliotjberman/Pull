@@ -65,6 +65,11 @@ public interface ControllerView
 
 
     /** Complete request for the single installed selected-track clip window. */
+    default de.mossgrabers.pull.core.api.DesiredDrumTarget desiredDrumTarget ()
+    {
+        return de.mossgrabers.pull.core.api.DesiredDrumTarget.inactive ();
+    }
+
     default DesiredClipScan desiredClipScan ()
     {
         return DesiredClipScan.inactive ();

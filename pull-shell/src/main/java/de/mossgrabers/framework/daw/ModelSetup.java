@@ -14,6 +14,10 @@ import java.util.Set;
  */
 public class ModelSetup
 {
+    private boolean groupDrumTarget;
+    public void enableGroupDrumTarget () { this.groupDrumTarget = true; }
+    public boolean wantsGroupDrumTarget () { return this.groupDrumTarget; }
+
     private boolean              hasFlatTrackList           = true;
     private boolean              hasFullFlatTrackList       = false;
 

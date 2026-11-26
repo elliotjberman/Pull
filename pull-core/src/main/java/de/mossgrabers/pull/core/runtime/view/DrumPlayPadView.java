@@ -138,7 +138,7 @@ public final class DrumPlayPadView implements ControllerView
         for (int padIndex = 0; padIndex < PLAY_COLUMNS * PLAY_ROWS; padIndex++)
         {
             final DrumPadSnapshot pad = aligned ? padAt (drum, padIndex) : null;
-            lights.put (playPadControl (padIndex), padColor (pad, snapshot.bridge ().selectedTrack ().color ()));
+            lights.put (playPadControl (padIndex), padColor (pad, ResolvedNoteViewer.target (snapshot).color ()));
         }
         return new ViewOutput (lights, Map.of ());
     }

@@ -53,6 +53,7 @@ public class HostImpl implements IHost
     private final List<IUsbDevice> usbDevices = new ArrayList<> ();
     private Runnable projectStructureMutationGuard = () -> { };
     private boolean projectStructureMutationGuardInstalled;
+    private DrumDeviceCache drumDeviceCache;
 
 
     /**
@@ -65,6 +66,24 @@ public class HostImpl implements IHost
         this.host = host;
 
         readDeviceFiles ();
+    }
+
+
+    /** Shared native topology; call only during extension initialization. */
+    public DrumDeviceCache getDrumDeviceCache ()
+    {
+        if (this.drumDeviceCache == null)
+        {
+            final var rootId = this.host.getProject ().getRootTrackGroup ().channelId ();
+            final var name = this.host.createApplication ().projectName ();
+            rootId.markInterested ();
+            name.markInterested ();
+            this.drumDeviceCache = new DrumDeviceCache (this.host,
+                () -> Objects.requireNonNullElse (rootId.get (), "") + '\u001F' + Objects.requireNonNullElse (name.get (), ""));
+            rootId.addValueObserver (ignored -> this.drumDeviceCache.refreshProject ());
+            name.addValueObserver (ignored -> this.drumDeviceCache.refreshProject ());
+        }
+        return this.drumDeviceCache;
     }
 
 

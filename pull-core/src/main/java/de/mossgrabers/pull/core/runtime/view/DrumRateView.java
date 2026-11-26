@@ -80,7 +80,7 @@ public final class DrumRateView implements ControllerView
     @Override
     public InputTarget inputTarget (final ControlId control, final InputKind kind, final ControllerSnapshot snapshot)
     {
-        final var selected = snapshot.bridge ().selectedTrack ();
+        final var selected = ResolvedNoteViewer.target (snapshot);
         return isEnabled (snapshot) ? new InputTarget.Context (control, "drum-roll", selected.channelId (), selected.generation ()) : null;
     }
 

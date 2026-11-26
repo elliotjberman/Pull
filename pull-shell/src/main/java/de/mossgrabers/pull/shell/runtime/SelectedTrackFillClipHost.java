@@ -774,6 +774,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         private final RetainedCursorHost resources;
         private Track selectedTrack;
         private ISelectedTrackNoteTarget selectedTarget;
+        private IModel model;
 
 
         private LiveAdapter (final RetainedCursorHost resources)
@@ -787,6 +788,7 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         {
             if (!(model.getCursorTrack () instanceof final TrackImpl track))
                 throw new IllegalArgumentException ("Selected-track fill scanning requires the Bitwig TrackImpl model");
+            this.model = model;
             this.selectedTarget = Objects.requireNonNull (selectedTarget, "selectedTarget");
             this.selectedTrack = track.getTrack ();
             this.selectedTrack.exists ().markInterested ();
@@ -798,8 +800,8 @@ final class SelectedTrackFillClipHost implements DrumFillClipHost
         public SelectedTrackSample selectedTrack ()
         {
             final Track track = this.selectedTrack;
-            final ISelectedTrackNoteTarget target = this.selectedTarget;
-            final boolean aligned = target != null && target.doesExist () && track != null && track.exists ().get () && target.getChannelID ().equals (track.channelId ().get ());
+            final ISelectedTrackNoteTarget target = this.selectedTarget == null ? null : this.selectedTarget.noteTarget ();
+            final boolean aligned = target != null && target.doesExist () && track != null && track.exists ().get () && this.selectedTarget.getChannelID ().equals (track.channelId ().get ()) && this.model.isDrumTrackReady () && target.getChannelID ().equals (this.model.getDrumTrackId ());
             return new SelectedTrackSample (target == null ? "" : target.getChannelID (), aligned, target == null ? 0 : target.getGeneration ());
         }
 

@@ -13,6 +13,12 @@ package de.mossgrabers.framework.daw.midi;
  */
 public interface ISelectedTrackNoteTarget
 {
+    default ISelectedTrackNoteTarget noteTarget () { return this; }
+    default de.mossgrabers.pull.core.api.GroupDrumScanSnapshot groupDrumScan () { return de.mossgrabers.pull.core.api.GroupDrumScanSnapshot.empty (); }
+    default void refreshDrumTarget (de.mossgrabers.pull.core.api.DesiredDrumTarget requested) { }
+    default boolean drumTargetChanging (de.mossgrabers.pull.core.api.DesiredDrumTarget requested) { return false; }
+    default boolean isDrumModelAligned (String modelTrackId) { return this.doesExist () && this.getChannelID ().equals (modelTrackId); }
+
     /**
      * Submit the permanent controller note input's direct selected-track route. Bitwig provides no
      * attachment read-back, so callers must not treat return from this void operation as proof that
